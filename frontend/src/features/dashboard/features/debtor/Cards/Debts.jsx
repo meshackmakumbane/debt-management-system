@@ -1,5 +1,5 @@
 import React from 'react'
-import Loader from '../../../../components/UI/Loader'
+import Loader from '../../../../../components/UI/Loader'
 
 const Debts = ({ debts, status, errorMessage }) => {
 
