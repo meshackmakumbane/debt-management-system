@@ -1,37 +1,69 @@
 import mongoose from 'mongoose'
 
-const notificationSchema = new mongoose.Schema({
-   recipient: {
+const notificationSchema = new mongoose.Schema(
+  {
+    recipient: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true
-   },
+      required: true,
+    },
 
-   type: {
+    type: {
       type: String,
-      enum: ['debtor_added','balance_update', 'debtor_assigned', 'payment_made', 'installment_plan', 'interaction_made', 'new_ticket'],
-      required: true
-   },
+      enum: [
+        'debtor_added',
+        'balance_update',
+        'debtor_assigned',
+        'payment_made',
+        'installment_plan',
+        'interaction_made',
+        'new_ticket',
+        'system_alert',
+      ],
+      required: true,
+    },
 
-   message: {
+    title: {
       type: String,
-      required: true
-   },
+      required: true,
+    },
 
-   relatedDebtor: {
+    message: {
+      type: String,
+      required: true,
+    },
+
+    relatedDebtor: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-   },
+      ref: 'User',
+    },
 
-   metadata: {
-      type: Object
-   },
+    relatedDebt: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Debt',
+    },
 
-   read: {
+    relatedPayment: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Payment',
+    },
+
+    metadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+
+    read: {
       type: Boolean,
-      default: false
-   }
+      default: false,
+    },
 
-}, { timestamps: true })
+    readAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  { timestamps: true }
+)
 
-export const Notification = mongoose.model("Notification", notificationSchema)
+export const Notification = mongoose.model('Notification', notificationSchema) 

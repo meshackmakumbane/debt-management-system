@@ -5,7 +5,7 @@ import {
         recordPaymentController, 
         createInstallmentController, 
         recordInstallmentPaymentController 
-      } from '../controllers/financeController.js'
+      } from '../controllers/financeController.js' 
 
 /* RECORD PAYMENT -------------------------------------------------- */
 router.post('/record-payment/:id', recordPaymentController)

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 
 import debtLogo from '../../../assets/Debtlogo.png';
@@ -7,57 +7,55 @@ import Loader from '../../../components/UI/Loader';
 import {
   loginUser,
   clearError,
-  setError,
-} from '../services/authSlice';
+  setError, 
+} from '../authSlice'; 
 
 const AdminLogin = () => {
   const { loading, error, isAuthenticated, role } = useSelector(
     (state) => state.auth
-  );
+  )
 
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
+  const dispatch = useDispatch()
+  const navigate = useNavigate()
 
   const [formValue, setFormValue] = useState({
-    accessId: '',
+    employeeId: '',
     password: '',
-  });
+  })
 
   /*  HANDLE INPUT -------------------------------------------------------- */
 
   const handleChange = (e) => {
-    dispatch(clearError());
+    dispatch(clearError())
 
-    const { name, value } = e.target;
+    const { name, value } = e.target
 
     setFormValue((prev) => ({
       ...prev,
       [name]: value,
     }));
-  };
+  }
 
   /*  SUBMIT ---------------------------------------------------------- */
 
   const handleSubmit = (e) => {
-    e.preventDefault();
+    e.preventDefault()
 
-    dispatch(clearError());
+    dispatch(clearError())
 
-    if (!formValue.accessId || !formValue.password) {
-      dispatch(setError('Provide login credentials'));
+    if (!formValue.employeeId || !formValue.password) {
+      dispatch(setError('Provide login credentials'))
       return;
     }
 
-    dispatch(loginUser(formValue));
-  };
+    dispatch(loginUser(formValue))
+  }
 
   /*  REDIRECT LOGIC ------------------------------------------------------ */
 
-  useEffect(() => {
-    if (isAuthenticated && role === 'admin') {
-      navigate('/admin', { replace: true });
-    }
-  }, [isAuthenticated, role, navigate]);
+  if (isAuthenticated) {
+    return <Navigate to="/account" replace />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
@@ -65,12 +63,12 @@ const AdminLogin = () => {
       <div className="w-full lg:w-1/2 flex items-center justify-center bg-white px-6 py-12">
         <div className="w-full max-w-sm">
           <div className="flex justify-center mb-6">
-            <img src={debtLogo} alt="Debt Solution Logo" className="h-20" />
+            <img src={debtLogo} alt="Debt Solution Logo" className="h-25" />
           </div>
 
           <div className="bg-gray-50 p-6 rounded-xl shadow-md">
             <p className="text-sm text-gray-500 mb-5 text-center">
-              Secure access to system-wide management tools
+              Secure access to system management tools
             </p>
 
             <form onSubmit={handleSubmit}>
@@ -78,8 +76,8 @@ const AdminLogin = () => {
                 className="border border-gray-300 p-3 rounded-lg w-full mb-3 focus:outline-none focus:ring-2 focus:ring-green-600"
                 placeholder="Access ID"
                 type="text"
-                name="accessId"
-                value={formValue.accessId}
+                name="employeeId"
+                value={formValue.employeeId}
                 onChange={handleChange}
               />
 
@@ -98,7 +96,7 @@ const AdminLogin = () => {
                 </p>
               )}
 
-              <button className="bg-green-600 hover:bg-green-700 text-white font-semibold w-full p-3 rounded-lg transition cursor-pointer">
+              <button disabled={loading} className="bg-green-600 hover:bg-green-700 text-white font-semibold w-full p-3 rounded-lg transition cursor-pointer h-13">
                 {loading ? <Loader /> : 'Login'}
               </button>
             </form>
@@ -106,8 +104,8 @@ const AdminLogin = () => {
 
           <div className="bg-gray-50 text-center text-[10px] rounded-xl mt-6 p-4">
             <p>Test credentials:</p>
-            <p>Access ID: DH892193</p>
-            <p>Password: DH463724</p>
+            <p>Employee ID: EMP-07160413</p>
+            <p>Password: DH13396040</p>
           </div>
 
           <p className="text-xs text-gray-400 mt-4 text-center">

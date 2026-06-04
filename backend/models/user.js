@@ -1,104 +1,98 @@
 import mongoose from 'mongoose'
 
-const userSchema = new mongoose.Schema({
-   fullName: {
+const userSchema = new mongoose.Schema(
+  {
+    name: {
       type: String,
       required: true,
-      trim: true
-   },
+      trim: true,
+    },
 
-   email: {
+    email: {
       type: String,
+      required: true,
       unique: true,
       lowercase: true,
-      trim: true,
-      sparse: true
-   },
+    },
 
-   phoneNumber: {
-      type: String
-   },
-
-   password: {
+    password: {
       type: String,
-      required: function () {
-         return this.role === 'agent' || this.role === 'admin'
-      }
-   },
-
-   role: {
-      type: String,
-      enum: ['debtor', 'agent', 'admin'],
-      default: 'debtor'
-   },
-
-   accessId: {
-      type: String,
-      required: function () {
-         return this.role === 'agent' || this.role === 'admin'
-      },
-      unique: true,
-      sparse: true
-   },
-
-   idNumber: {
-      type: String,
-      required: function () {
-         return this.role === 'debtor'
-      },
-      unique: true,
-      sparse: true
-   },
-
-   refNumber: {
-      type: String,
-      required: function () {
-         return this.role === 'debtor'
-      }
-   },
-
-   balance: { 
-      type: Number,
-      default: 0
-   },
-
-   status: {
-      type: String,
-      enum: ['pending', 'overdue', 'paid', 'arrangement'],
-      default: 'pending'
-   },
-
-   assignedAgent: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User"
-   },
-
-   agentName:{
-      type:String,
       required: function (){
-         return this.role === 'debtor'
+        return this.role === 'admin' || this.role === "agent"
+      },
+      minlength: 6,
+    },
+
+    idNumber: {
+      type: String,
+      unique: true,
+      sparse: true,
+      required: function (){
+        return this.role === 'debtor'
       }
-   },
+    },
 
-   assignedDebtors:{
-      type: [mongoose.Schema.Types.ObjectId],
-      ref: "User"
-   },
+    refNumber: {
+      type: String,
+      unique: true,
+      sparse: true,
+      required: function (){
+        return this.role === 'debtor'
+      }
+    },
 
-   isActive: {
+    employeeId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      required: function (){
+        return this.role === 'admin' || this.role === 'agent'
+      }
+    },
+
+    role: {
+      type: String,
+      enum: ['super_admin','admin', 'agent', 'debtor'],
+      default: 'debtor',
+    },
+
+    phone: {
+      type: String,
+    },
+
+    isActive: {
       type: Boolean,
-      default: true
-   },
+      default: true,
+    },
 
-   lastLogin: {
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+
+    assignedAgent: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    organizationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+      required: true,
+      index: true,
+    },
+    debtId:{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Debt",
+      index: true,
+    },
+    lastLogin:{
       type: Date,
-      default: Date.now
-   },
+      default: Date.now()
+    },
+    verificationCode:String,
+    verificationCodeExpiresAt: Date
+  },
+  { timestamps: true } 
+)
 
-   notes: {
-      type: String
-   }
-
-}, { timestamps: true })
-
-export const User = mongoose.model('User', userSchema)
+export const User = new mongoose.model('User', userSchema)

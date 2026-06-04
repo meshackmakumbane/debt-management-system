@@ -1,8 +1,12 @@
 import jwt from 'jsonwebtoken';
+import { User } from '../models/user.js'
 
-export const protect = (req, res, next) => {
+const protect = async(req, res, next) => {
+  console.log("Middleware Hit!")
+  console.log(req.cookies)
   try {
-    const token = req.cookies?.token;
+
+    const token = req.cookies.token;
 
     if (!token) {
       return res.status(401).json({
@@ -11,15 +15,20 @@ export const protect = (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET_KEY
-    );
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
 
-    req.userId = decoded.id;
-    req.userRole = decoded.role;
+    const user = await User.findById(decoded.id)
 
-    next();
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorised Access',
+      });
+    }
+
+    req.user = user
+
+    next()
   } catch (error) {
     return res.status(401).json({
       success: false,
@@ -27,3 +36,5 @@ export const protect = (req, res, next) => {
     });
   }
 };
+
+export default protect

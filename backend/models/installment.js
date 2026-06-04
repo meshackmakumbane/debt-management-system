@@ -1,108 +1,96 @@
 import mongoose from 'mongoose'
 
-const installmentSchema = new mongoose.Schema({
-   relatedDebtor: {
+const installmentSchema = new mongoose.Schema(
+  {
+    // linked debt
+    debt: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User"
-   },
+      ref: 'Debt',
+      required: true,
+    },
 
-   createdBy: {
+    // debtor on arrangement
+    debtor: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true
-   },
+      ref: 'User',
+      required: true,
+    },
 
-   // Terms
-   originalBalance: {
+    // agent/admin who created arrangement
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+
+    // original debt amount at arrangement creation
+    originalBalance: {
       type: Number,
       required: true,
-      min: 0
-   },
+      min: 0,
+    },
 
-   installmentAmount: {
+    installmentAmount: {
       type: Number,
       required: true,
-      min: 1
-   },
+      min: 1,
+    },
 
-   frequency: {
+    frequency: {
       type: String,
       enum: ['weekly', 'monthly'],
       default: 'monthly',
-      required: true
-   },
+      required: true,
+    },
 
-   totalInstallments: {
+    totalInstallments: {
       type: Number,
-      required: true
-   },
+      required: true,
+    },
 
-   installmentsPaid: {
+    installmentsPaid: {
       type: Number,
-      default: 0
-   },
+      default: 0,
+    },
 
-   amountPaid: {
+    amountPaid: {
       type: Number,
-      default: 0
-   },
+      default: 0,
+    },
 
-   remainingBalance: {
+    remainingBalance: {
       type: Number,
-      required: true
-   },
+      required: true,
+    },
 
-   nextDueDate: {
+    startDate: {
       type: Date,
-      default: Date.now
-   },
+      default: Date.now,
+    },
 
-   startDate: {
+    nextDueDate: {
       type: Date,
-      default: Date.now
-   },
+      required: true,
+    },
 
-   status: {
+    endDate: {
+      type: Date,
+    },
+
+    status: {
       type: String,
       enum: ['active', 'completed', 'defaulted', 'cancelled'],
-      default: 'active'
-   },
+      default: 'active',
+    },
 
-   paymentHistory: [
-      {
-         amount: Number,
-         paidAt: {
-            type: Date,
-            default: Date.now
-         },
-         method: {
-            type: String,
-            enum: ['eft', 'cash', 'debit_order']
-         },
-         recordedBy: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User'
-         },
-         transactionNumber: String,
-         status: {
-            type: String,
-            enum: ['paid', 'pending', 'overdue']
-         },
-      }
-   ]
+    notes: {
+      type: String,
+    },
+  },
+  { timestamps: true }
+)
 
-}, { timestamps: true })
-
-// calculate before saving
-installmentSchema.pre('save', function (next) {
-   this.remainingBalance = this.originalBalance - this.amountPaid
-
-   if (this.remainingBalance <= 0) {
-      this.status = 'completed'
-      this.remainingBalance = 0
-   }
-
-   next()
-})
-
-export const Installments = mongoose.model('Installment', installmentSchema)
+export const Installment = mongoose.model(
+  'Installment',
+  installmentSchema
+)

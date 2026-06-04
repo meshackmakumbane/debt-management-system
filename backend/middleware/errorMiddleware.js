@@ -1,7 +1,7 @@
 const errorMiddleware = (err, req, res, next) => {
-  console.error(err);
+  console.error(err)
 
-  const statusCode = err.statusCode || 500;
+  const statusCode = err.statusCode || 500
 
   res.status(statusCode).json({
     success: false,
@@ -10,7 +10,7 @@ const errorMiddleware = (err, req, res, next) => {
       process.env.NODE_ENV === 'development'
         ? err.stack
         : undefined,
-  });
-};
+  })
+}
 
-export default errorMiddleware;
+export default errorMiddleware

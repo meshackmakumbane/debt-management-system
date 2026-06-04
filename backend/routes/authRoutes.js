@@ -1,20 +1,16 @@
 import express from 'express'
 const router = express.Router()
 
-import { protect } from '../middleware/protect.js'
-import { 
-        loginController, 
-        logoutController, 
-        profileController 
+import { loginController,
+         profileController,
+         logoutController
 } from '../controllers/authControllers.js'
 
-/* Login --------------------------------------------------*/
-router.post("/login", loginController) 
+import protect from '../middleware/protect.js'
 
-/* Logout --------------------------------------------------*/
-router.get("/logout", logoutController) 
-
-/* Dashboard --------------------------------------------------*/
-router.get("/profile", protect, profileController) 
+/* AUTH ROUTES --------------------------------------------------*/
+router.post('/login', loginController)
+router.get('/profile', protect, profileController)
+router.get('/logout', logoutController)
 
 export default router

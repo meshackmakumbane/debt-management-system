@@ -1,80 +1,126 @@
 import bcrypt from 'bcryptjs';
 import { User } from '../models/user.js';
 
-import generateTokenAndSetCookie from '../utils/generateTokenAndSetCookie.js';
-
+import generateTokenAndSetCookie from '../utils/generateTokenAndSetCookie.js'
 
 /* LOGIN -------------------------------------------------------------------------- */
-export const loginController = async (req, res, next) => {
+export const loginController = async (
+  req,
+  res,
+  next
+) => {
   try {
-    const { accessId, password, refNumber, idNumber } = req.body;
 
-    let user = null;
+    const {
+      employeeId,
+      password,
+      refNumber,
+      idNumber
+    } = req.body
 
-    /* ---------------------------- Debtor Login ---------------------------- */
+    let user = null
 
-    const isDebtorLogin = idNumber && refNumber;
+    /* -------------------------- DEBTOR LOGIN -------------------------- */
+
+    const isDebtorLogin =
+      Boolean(refNumber && idNumber)
 
     if (isDebtorLogin) {
-      user = await User.findOne({
-        idNumber,
-        refNumber,
-        role: 'debtor',
-      });
+
+      user =
+        await User.findOne({
+          refNumber,
+          idNumber,
+          role: 'debtor',
+          isActive: true
+        }).select('-password')
     }
 
-    /* ------------------------- Admin / Agent Login ------------------------ */
+    /* -------------------------- STAFF LOGIN -------------------------- */
 
-    const isStaffLogin = accessId && password;
+    const isStaffLogin =
+      Boolean(employeeId && password)
 
-    if (isStaffLogin) {
-      const existingUser = await User.findOne({
-        accessId,
-        role: { $in: ['admin', 'agent'] },
-      });
+    if (
+      !user &&
+      isStaffLogin
+    ) {
+
+      const existingUser =
+        await User.findOne({
+          employeeId,
+          role: {
+            $in: [
+              'admin',
+              'agent'
+            ]
+          },
+          isActive: true
+        })
 
       if (
         existingUser &&
-        existingUser.password &&
-        (await bcrypt.compare(password, existingUser.password))
+        existingUser.password
       ) {
-        user = existingUser;
+
+        const match =
+          await bcrypt.compare(
+            password,
+            existingUser.password
+          )
+
+        if (match) {
+
+          user =
+            existingUser.toObject()
+
+          delete user.password
+        }
       }
     }
 
-    /* --------------------------- Invalid Login ---------------------------- */
+    /* -------------------------- INVALID LOGIN -------------------------- */
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials',
-      });
+        message:
+          'Invalid credentialss'
+      })
     }
 
-    /* ------------------------------ Auth Token ----------------------------- */
+    /* -------------------------- UPDATE LOGIN -------------------------- */
 
-    generateTokenAndSetCookie(res, user._id);
+    await User.findByIdAndUpdate(
+      user._id,
+      {
+        lastLogin:
+          new Date()
+      }
+    )
 
-    user.lastLogin = new Date();
-    await user.save();
+    /* --------------------------- AUTH COOKIE --------------------------- */
 
-    /* ------------------------------- Response ------------------------------ */
+    generateTokenAndSetCookie(res, user._id)
 
-    res.status(200).json({
+    /* ---------------------------- RESPONSE ---------------------------- */
+
+    return res.status(200).json({
       success: true,
-      message: 'Login successful',
-      user: {...user, password:undefined, accessId:undefined}
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+      message:
+        'Login successful',
+      user
+    })
 
+  } catch (error) {
+    next(error)
+  }
+}
 
 /* PROFILE -------------------------------------------------------------------------- */
 export const profileController = async (req, res, next) => {
   try {
-    const user = await User.findById(req.userId).select('-password');
+    const user = await User.findById(req.user._id).select('-password');
 
     if (!user) {
       return res.status(401).json({
@@ -90,8 +136,7 @@ export const profileController = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-};
-
+}
 
 /* LOGOUT -------------------------------------------------------------------------- */
 export const logoutController = async (req, res, next) => {
@@ -109,4 +154,4 @@ export const logoutController = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-};
+}

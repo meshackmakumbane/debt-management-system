@@ -1,40 +1,20 @@
 import mongoose from 'mongoose'
 
 const debtSchema = new mongoose.Schema({
-   debtorInfo: {
-      debtor: {
-         type: mongoose.Schema.Types.ObjectId,
-         ref: 'User',
-         required: true
-      },
-      fullName: {
-         type: String,
-         required: true
-      },
-      refNumber: {
-         type: String,
-         required: true
-      },
-      idNumber: {
-         type: String,
-         required: true
-      }
+   debtorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
    },
-
-   agent: {
-      agentId:{
-         type: mongoose.Schema.Types.ObjectId,
-         ref: 'User',
-         required: true
-      },
-      fullName:String
+   agentId:{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
    },
-   
    primaryLender: {
       type: String,
       required: true
    },
-
    amount: {
       type: Number,
       required: true
@@ -62,6 +42,16 @@ const debtSchema = new mongoose.Schema({
 
    description: {
       type: String
+   },
+   isActive:{
+      type:Boolean,
+      default: true
+   },
+   organizationId: {
+   type: mongoose.Schema.Types.ObjectId,
+   ref: 'Organization',
+   required: true,
+   index: true,
    },
    paymentHistory: []
 

@@ -1,121 +1,268 @@
 import React, { useState, useEffect } from 'react'
-import Logo from '../../../assets/Debtlogo.png'
-import Notifications from './Notifications'
-import Mobile from './Mobile'
-import { useSelector, useDispatch } from 'react-redux'
-import { getProfile } from '../../auth/services/authSlice'
+import { Link } from 'react-router-dom'
 
-import api from '../../../api/api'
+import Logo from '../../../assets/Debtlogo.png'
+import api from '../../../api/axios'
+import Notifications from './cards/Notification'
+import Message from './cards/Message'
+import Mobile from './cards/Mobile'
+
+import { useSelector, useDispatch } from 'react-redux'
+import { getProfile } from '../../auth/authSlice'
 
 const Header = () => {
-  //Notifications
-  const [ notifications, setNotifications ] = useState({})  
-  const [ errorMessage, setErrorMessage ] = useState(null)
-  const [ reloading, setReloading ] = useState(false)
-  //Auth
   const dispatch = useDispatch()
-  const { user, loading, error, isAuthenticated, role } = useSelector(state=> state.auth)
+
+  /* AUTH --------------------------------------------------- */
+
+  const { user, loading, isAuthenticated, role, } = useSelector((state) => state.auth)
+
+  /* UI ----------------------------------------------------- */
+
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
-  const initial = user?.fullName ? user.fullName.charAt(0).toUpperCase() : "G"
+  const [messageOpen, setMessageOpen] = useState(false)
 
-  useEffect(()=>{
-    dispatch(getProfile())
-  },[dispatch])
-  
-  //Notifications
-  useEffect(()=>{
-    const fetchNotifications = async () =>{
-      setReloading(true)
-      try{
-        const { data } = await api.get('/users/notifications')
-          setNotifications(data?.notifications)
-      }catch(error){
-        setErrorMessage(error.response?.data?.message || 'Error fetching notifications')
-      }finally{
+  /* NOTIFICATION ------------------------------------------- */
+
+  const [notifications, setNotifications] = useState([])
+  const [notificationLoading, setNotificationLoading] = useState(false)
+
+  const [errorMessage, setErrorMessage] = useState(null)
+  const [reloading, setReloading] = useState(false)
+
+  /* MESSAGE ------------------------------------------------ */
+
+  const [messages, setMessages] = useState([])
+  const [error, setError] = useState('')
+
+  /* PROFILE ------------------------------------------------ */
+
+  useEffect(() => {
+    if (!user && isAuthenticated) {
+      dispatch(getProfile()) 
+    }
+  }, [dispatch, user, isAuthenticated])
+
+  /* FETCH NOTIFICATION ------------------------------------- */
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const fetchNotifications = async () => {
+      try {
+        setReloading(true)
+
+        const { data } = await api.get('/notification/notifications')
+
+        setNotifications(data?.notifications || [])
+      } catch (error) {
+        setNotifications([])
+
+        setErrorMessage(
+          error?.response?.data?.message ||
+          'Error fetching notifications'
+        )
+      } finally {
         setReloading(false)
       }
     }
     fetchNotifications()
-  },[])
+  }, [isAuthenticated])
 
+  /* FETCH MESSAGES ------------------------------------- */  
+
+  useEffect(() => {
+      if (!isAuthenticated) return
+  
+      const fetchMessages = async () => {
+        try {
+          setReloading(true)
+  
+          const { data } = await api.get('/users/messages')
+          setMessages(data?.messages || [])
+        } catch (error) {
+          setMessages([])
+  
+          setError(
+            error?.response?.data?.message ||
+            'Error fetching message'
+          )
+        } finally {
+          setReloading(false)
+        }
+      }
+  
+      fetchMessages()
+  }, [isAuthenticated])
+
+  const displayName = user?.name?.split(" ")[0].toUpperCase() || "USER"
+  const initial = user?.name?.charAt(0)?.toUpperCase() || 'U'
+  const canSearch = role !== 'debtor'
 
   return (
-    <header className='flex items-center justify-between h-17 bg-white px-4 md:px-8 border-b border-gray-200 fixed right-0 left-0 z-50 backdrop-blur-sm bg-white/90'>
-      {/* Mobile menu */}
-      <span className='sm:hidden cursor-pointer z-10' onClick={()=> setMobileOpen(!mobileOpen)}>
-      {mobileOpen
-        ?  <svg width="20px" height="20px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000">
-              <path d="M6 6L18 18" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M6 18L18 6" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+    <header className="fixed top-0 left-0 right-0 z-50 h-17 bg-white/90 backdrop-blur-sm border-b border-gray-200 px-4 md:px-8 flex items-center justify-between">
+    
+          {/* LEFT */}
+          <div className="flex items-center gap-3">
+    
+            {/* Mobile menu */}
+            <button
+              onClick={() => setMobileOpen(!mobileOpen)}
+              className="lg:hidden cursor-pointer z-50"
+            >
+              {mobileOpen ? (
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    d="M6 6L18 18M6 18L18 6"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    d="M3 5H21M3 12H21M3 19H21"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              )}
+            </button>
+    
+            {/* Logo */}
+            <img
+              src={Logo}
+              alt="Debt Hero"
+              className="h-20 object-contain md:mt-3 max-sm:-ml-10 overflow-hidden"
+            />
+          </div>       
 
-          : <svg width="20px" height="20px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M3 5H21" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M3 12H21" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M3 19H21" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-        } 
-      </span>
+          <div className="flex flex-col max-sm:hidden">
+            <h1 className="text-sm md:text-[15px] font-medium text-black leading-tight">
+              Welcome back, {displayName}
+            </h1>
 
-      {/* Logo (mobile only) */}
-      <div className=" flex items-center -ml-20 md:-ml-10">
-        <img 
-        src={Logo} 
-        alt="Logo" 
-        className="h-17 object-contain"
-        />
-      </div>
-
-      <Mobile mobileOpen={mobileOpen} setMobileOpen={setMobileOpen}/>
-
-      {/* CENTER - SEARCH */}
-      <div className="hidden lg:flex flex-1 max-w-xl mx-6 flex items-center border pl-4 gap-2 bg-white border-gray-500/30 h-[46px] rounded-full overflow-hidden max-w-md w-full">
-        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30" fill="#6B7280">
-          <path d="M13 3C7.489 3 3 7.489 3 13s4.489 10 10 10a9.95 9.95 0 0 0 6.322-2.264l5.971 5.971a1 1 0 1 0 1.414-1.414l-5.97-5.97A9.95 9.95 0 0 0 23 13c0-5.511-4.489-10-10-10m0 2c4.43 0 8 3.57 8 8s-3.57 8-8 8-8-3.57-8-8 3.57-8 8-8"/>
-          </svg>
-          <input type="text" placeholder="Search for transactions and more" className="w-full h-full outline-none placeholder-gray-500 text-gray-500 bg-transparent text-sm" />
-          <button type="submit" className="bg-green-900 w-32 h-9 rounded-full text-sm text-white mr-1">Search</button>
-      </div>
-
-      {/* RIGHT */}
-      <div className='flex items-center gap-5 md:gap-6'>
-
-        {/* Notifications */}
-      <button 
-        onClick={()=>setIsOpen(!isOpen)}
-        className='bg-gray-100 relative p-2 rounded-full hover:bg-gray-300 transition cursor-pointer'>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M18 8.4C18 6.7 17.3 5.1 16.2 3.9C15.1 2.7 13.6 2 12 2C10.4 2 8.9 2.7 7.8 3.9C6.7 5.1 6 6.7 6 8.4C6 15.9 3 18 3 18H21C21 18 18 15.9 18 8.4Z"/>
-        <path d="M10.3 21C10.5 21.3 10.7 21.6 11 21.7C11.3 21.9 11.6 22 12 22C12.4 22 12.7 21.9 13 21.7C13.3 21.6 13.5 21.3 13.7 21"/>
-        </svg>
-        {/* Notification badge */}
-        <span className='absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center font-semibold'>
-        {notifications.length || 0}
-        </span>
-      </button>
-
-      
-      <div className="hidden md:block h-6 w-px bg-gray-200" />
-        {/* User */}
-          <div className='flex items-center gap-3 cursor-pointer group'>
-            
-            <div className='h-9 w-9 flex items-center justify-center rounded-full bg-gradient-to-br from-green-800 to-green-600 text-white font-semibold text-sm shadow-sm'>
-            {loading ? null : user?.fullName?.charAt(0).toUpperCase() || "U"}
-            </div>
-
-            {/* Name (desktop only) */}
-            <div className="hidden md:flex flex-col leading-tight">
-            <span className="text-sm font-bold text-gray-800">
-                {user?.fullName.toUpperCase() || "USER"}
-            </span>
-            <span className="text-xs text-gray-500">
-                {role ? role.toUpperCase() : "ACCOUNT"}
-            </span>
-            </div>
-
+            <p className="text-sm text-gray-500 mt-0.5">
+              Here's what's happening today.
+            </p>
           </div>
-      </div>
-      <Notifications 
-        notifications={notifications} 
-        isOpen={isOpen} 
-      />
+    
+          {/* CENTER SEARCH */}
+          <div className="hidden lg:flex items-center flex-1 max-w-[700px] mx-6 border border-gray-300 rounded-full h-[46px] overflow-hidden pl-4">
+  
+            <svg width="24px" height="25px" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M17 17L21 21" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M3 11C3 15.4183 6.58172 19 11 19C13.213 19 15.2161 18.1015 16.6644 16.6493C18.1077 15.2022 19 13.2053 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+  
+            <input
+              type="text"
+              placeholder={role === 'debtor' ? "Search" : "Search for transactions and more"}
+              className="w-full h-full px-3 outline-none text-sm"
+            />
+  
+            <button
+              className="bg-gradient-to-br from-green-800 to-green-600 text-white rounded-full px-5 h-9 mr-1"
+            >
+              Search
+            </button>
+          </div>
+    
+          {/* RIGHT */}
+          <div className="flex items-center gap-4 md:gap-6">
+    
+            {/* Notifications */}
+            {isAuthenticated && (
+              <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="relative bg-gray-100 p-2 rounded-full hover:bg-gray-200 transition cursor-pointer"
+              >
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.8}
+                    stroke="currentColor"
+                    className="h-5 w-5 text-black"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0018 9.75v-.7V9A6 6 0 006 9v.05-.001v.7a8.967 8.967 0 00-2.312 6.022c1.733.64 3.56 1.08 5.454 1.31m5.715 0a24.255 24.255 0 01-5.715 0m5.715 0a3 3 0 11-5.715 0"
+                    />
+                  </svg>
+    
+                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center">
+                  {reloading ? '…' : notifications.length}
+                </span>
+              </button>
+            )}
+    
+            {/* Messages */}
+            {isAuthenticated && (
+            <button
+                onClick={() => setMessageOpen(!messageOpen)}
+                className="relative bg-gray-100 p-2 rounded-full hover:bg-gray-200 transition cursor-pointer"
+              >
+               <svg width="20px" height="20px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M8 10L12 10L16 10" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8 14L10 14L12 14" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 13.8214 2.48697 15.5291 3.33782 17L2.5 21.5L7 20.6622C8.47087 21.513 10.1786 22 12 22Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    
+                <span className={`absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center`}>
+                  {reloading ? '…' : messages.length}
+                </span>
+            </button>
+            )}
+    
+            <div className="hidden md:block h-6 w-px bg-gray-200" />
+    
+            {/* USER */}
+            <div className="flex items-center gap-3">
+    
+              <Link to='/account/profile' className="cursor-pointer h-9 w-9 rounded-full bg-gradient-to-br from-green-800 to-green-600 text-white flex items-center justify-center font-semibold">
+                {loading ? '...' : initial}
+              </Link>
+    
+              <div className="hidden md:flex flex-col leading-tight">
+    
+                <span className="cursor-pointer text-sm font-bold text-gray-800">
+                  {displayName}
+                </span>
+    
+                <span className="text-xs text-gray-500">
+                  {role?.toUpperCase() || 'ACCOUNT'}
+                </span>
+    
+              </div>
+    
+            </div>
+    
+          </div>
+    
+          <Notifications
+            notifications={notifications}
+            isOpen={isOpen}
+            error={errorMessage}
+          />
+    
+          <Message 
+            messages={messages} 
+            error={error}
+            messageOpen={messageOpen}
+          />
+
+          <Mobile
+            mobileOpen={mobileOpen}
+            setMobileOpen={setMobileOpen}
+          /> 
+    
     </header>
   )
 }

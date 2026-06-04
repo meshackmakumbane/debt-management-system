@@ -5,11 +5,11 @@ import { Notification } from '../models/notification.js'
 import { Payment } from '../models/payment.js'
 
 
+
 /* MAKE PAYMENT -------------------------------------------------- */
 export const makePaymentController = async(req, res, next)=>{
    try {
     const { amount, debtId } = req.body
-
     const debt = await Debt.findById(debtId)
 
     if (!debt) {
@@ -46,8 +46,7 @@ export const makePaymentController = async(req, res, next)=>{
   } catch (err) {
     res.status(500).json({ message: err.message })
   }
-}
-
+} 
 
 /* RECORD PAYMENT -------------------------------------------------- */
 export const recordPaymentController = async(req, res, next)=>{
@@ -59,16 +58,24 @@ export const recordPaymentController = async(req, res, next)=>{
          _id:id
       })
 
-      if(!debtor){
+      if(!relatedDebtor){
          return res.status(400).json({
             success: false,
             message: "Debtor not found"
-         })
+         }) 
       }
 
       const relatedAgent = await User.findOne({
-         _id: userId
+         assignedDebtors: relatedDebtor._id 
+         
       })
+
+      if(!relatedAgent){
+         return res.status(400).json({
+            success: false,
+            message: "Agent not found"
+         }) 
+      }
 
       const transactions = ()=>{
          return Math.floor(1000000 + Math.random * 9000000)
@@ -81,41 +88,47 @@ export const recordPaymentController = async(req, res, next)=>{
          method,
          status,
          refNumber: relatedDebtor.refNumber,
-         transactionNumber: `Ref${transactions()}`,
+         transactionNumber: `transaction-${transactions()}`,
          paidAt
       })
       await payment.save()
+      const updatedAmount = relatedDebtor.balance - Number(amount)
 
-      //update debt
-      const debt = await Debt.find({
-         debtor: relatedDebtor._id,
-         agent: relatedAgent._id
-      })
+      /*----- update debt ----- */
+      const debt = await Debt.findOneAndUpdate(
+         {
+            debtor: relatedDebtor._id,
+            agent: relatedAgent._id
+         },
+         {
+            $set:{
+            amount,
+            amountPaid: amount,
+            balance: updatedAmount
+            },
+            $push:{
+               paymentHistory: payment 
+            },
 
-      const updatedAmount = debt.amount || 0 - amount
-      const paymentHistory = [payment]
+         }
+      )
 
-      debt.amount = updatedAmount
-      debt.amountPaid = amount
-      debt.balance = updatedAmount
-      debt.paymentHistory.push(payment)
+      /* ----- Update debt status -----*/
+      // if (debt.balance <= 0) {
+      //    debt.balance = 0
+      //    debt.status = "paid"
+      // } else if (debt.amountPaid > 0) {
+      //    debt.status = "partial"
+      // }
 
-      //Update debt status
-      if (debt.balance <= 0) {
-         debt.balance = 0
-         debt.status = "paid"
-      } else if (debt.amountPaid > 0) {
-         debt.status = "partial"
-      }
-
-      await debt.save()
+      //await debt.save()
       const admin = await User.findOne({role:"admin", isActive: true})
       //Notification to admin
       await Notification.create({
          recipient: admin._id,
          type: "payment_made",
-         message: `Payment of R${amount} received from ${debt.debtor.fullName}`,
-         relatedDebtor: debt.debtor._id
+         message: `Payment of R${amount} received from ${relatedDebtor.fullName}`,
+         relatedDebtor: relatedDebtor._id
       })
 
       res.status(200).json({
@@ -127,130 +140,279 @@ export const recordPaymentController = async(req, res, next)=>{
    }
 }
 
-
-
-
-
-
 /* CREATE INSTALLMENT PLAN -------------------------------------------------- */
-export const createInstallmentController = async (req, res, next) => {
-   const {
-      debtorId,
-      originalBalance,
-      installmentAmount,
-      frequency,
-      totalInstallments
-   } = req.body
+export const createInstallmentController = async (
+  req,
+  res,
+  next
+) => {
+  const {
+    debtId,
+    installmentAmount,
+    frequency,
+    totalInstallments,
+    nextDueDate,
+    notes
+  } = req.body
 
-   const userId = req.userId
+  const userId = req.userId
 
-   try {
-      if (!debtorId || !originalBalance || !installmentAmount || !totalInstallments) {
-         return res.status(400).json({
-            success: false,
-            message: "Missing required fields"
-         })
-      }
+  try {
 
-      const debtor = await User.findById(debtorId)
+    if (
+      !debtId ||
+      !installmentAmount ||
+      !totalInstallments ||
+      !nextDueDate
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields"
+      })
+    }
 
-      if (!debtor || debtor.role !== "debtor") {
-         return res.status(404).json({
-            success: false,
-            message: "Debtor not found"
-         })
-      }
+    const debt =
+      await Debt.findById(debtId)
 
-      const installment = await Installments.create({
-         relatedDebtor: debtorId,
-         createdBy: userId,
-         originalBalance,
-         installmentAmount,
-         frequency,
-         totalInstallments,
-         installmentsPaid: 0,
-         amountPaid: 0,
-         remainingBalance: originalBalance,
-         startDate: new Date(),
-         nextDueDate: new Date(),
-         status: "active"
+    if (!debt) {
+      return res.status(404).json({
+        success: false,
+        message: "Debt not found"
+      })
+    }
+
+    const existing =
+      await Installment.findOne({
+        debt: debtId,
+        status: "active"
       })
 
-      res.status(201).json({
-         success: true,
-         message: "Installment plan created",
-         installment
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Active installment already exists"
+      })
+    }
+
+    const endDate =
+      new Date(nextDueDate)
+
+    if (frequency === "weekly") {
+      endDate.setDate(
+        endDate.getDate() +
+        (7 * totalInstallments)
+      )
+    } else {
+      endDate.setMonth(
+        endDate.getMonth() +
+        totalInstallments
+      )
+    }
+
+    const installment =
+      await Installment.create({
+
+        debt:
+          debt._id,
+
+        debtor:
+          debt.debtorInfo.debtor,
+
+        createdBy:
+          userId,
+
+        originalBalance:
+          debt.balance,
+
+        installmentAmount,
+
+        frequency,
+
+        totalInstallments,
+
+        remainingBalance:
+          debt.balance,
+
+        nextDueDate,
+
+        endDate,
+
+        notes,
+
+        status:
+          "active"
       })
 
-   } catch (error) {
-      next(error)
-   }
+    debt.status = "partial"
+
+    await debt.save()
+
+    res.status(201).json({
+      success: true,
+      message:
+        "Installment created successfully",
+      installment
+    })
+
+  } catch (error) {
+    next(error)
+  }
 }
 
 /* RECORD INSTALLMENT PAYMENT -------------------------------------------------- */
-export const recordInstallmentPaymentController = async (req, res, next) => {
-   const { installmentId, amount, method, transactionNumber } = req.body
-   const userId = req.userId
+export const recordInstallmentPaymentController =
+async (
+  req,
+  res,
+  next
+) => {
 
-   try {
-      const installment = await Installments.findById(installmentId)
+  const {
+    installmentId,
+    amount
+  } = req.body
 
-      if (!installment) {
-         return res.status(404).json({
-            success: false,
-            message: "Installment not found"
-         })
+  try {
+
+    const installment =
+      await Installment.findById(
+        installmentId
+      )
+
+    if (!installment) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Installment not found"
+      })
+    }
+
+    const debt =
+      await Debt.findById(
+        installment.debt
+      )
+
+    if (!debt) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Debt not found"
+      })
+    }
+
+    if (
+      amount <= 0 ||
+      amount >
+      installment.remainingBalance
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid amount"
+      })
+    }
+
+    // INSTALLMENT UPDATE
+
+    installment.amountPaid += amount
+
+    installment.remainingBalance -= amount
+
+    installment.installmentsPaid += 1
+
+    // DEBT UPDATE
+
+    debt.amountPaid += amount
+
+    debt.balance -= amount
+
+    // STATUS
+
+    if (
+      installment.remainingBalance <= 0
+    ) {
+
+      installment.remainingBalance = 0
+
+      installment.status =
+        "completed"
+
+      debt.balance = 0
+
+      debt.status =
+        "paid"
+    }
+
+    else {
+
+      installment.status =
+        "active"
+
+      debt.status =
+        "partial"
+
+      const next =
+        new Date(
+          installment.nextDueDate
+        )
+
+      if (
+        installment.frequency ===
+        "weekly"
+      ) {
+        next.setDate(
+          next.getDate() + 7
+        )
+      } else {
+        next.setMonth(
+          next.getMonth() + 1
+        )
       }
 
-      //Update payment totals
-      installment.amountPaid += amount
-      installment.installmentsPaid += 1
-      installment.remainingBalance =
-         installment.originalBalance - installment.amountPaid
+      installment.nextDueDate =
+        next
+    }
 
-      //Push payment history
-      installment.paymentHistory.push({
-         amount,
-         method,
-         transactionNumber,
-         recordedBy: userId
+    await installment.save()
+
+    await debt.save()
+
+    const admin =
+      await User.findOne({
+        role: "admin",
+        isActive: true
       })
 
-      //Update status
-      if (installment.remainingBalance <= 0) {
-         installment.remainingBalance = 0
-         installment.status = "completed"
-      }
-
-      //Calculate next due date
-      if (installment.status === "active") {
-         const nextDate = new Date()
-         if (installment.frequency === "weekly") {
-            nextDate.setDate(nextDate.getDate() + 7)
-         } else {
-            nextDate.setMonth(nextDate.getMonth() + 1)
-         }
-         installment.nextDueDate = nextDate
-      }
-
-      await installment.save()
-
-      //Notification
-      const admin = await User.findOne({role:"admin", isActive: true})
+    if (admin) {
       await Notification.create({
-         recipient: admin._id,
-         type: "installment_plan",
-         message: `Installment payment of R${amount} received`,
-         relatedDebtor: installment.relatedDebtor
-      })
+        recipient:
+          admin._id,
 
-      res.status(200).json({
-         success: true,
-         message: "Payment recorded successfully",
-         installment
-      })
+        type:
+          "payment_made",
 
-   } catch (error) {
-      next(error)
-   }
+        message:
+          `Installment payment of R${amount} received`,
+
+        relatedDebtor:
+          installment.debtor,
+
+        metadata: {
+          installmentId:
+            installment._id
+        }
+      })
+    }
+
+    res.status(200).json({
+      success: true,
+      message:
+        "Installment payment recorded",
+      installment
+    })
+
+  } catch (error) {
+    next(error)
+  }
 }

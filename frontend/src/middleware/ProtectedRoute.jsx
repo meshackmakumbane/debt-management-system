@@ -2,9 +2,9 @@ import { useSelector } from 'react-redux';
 import { Navigate, useLocation } from 'react-router-dom';
 
 const roleLoginMap = {
-  admin: '/admin-login',
-  agent: '/agent-login',
-  debtor: '/debtor-login',
+  admin: '/auth/admin',
+  agent: '/auth/agent',
+  debtor: '/auth/debtor',
 };
 
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
@@ -13,7 +13,7 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
 
   //not logged in send to correct login page
   if (!isAuthenticated) {
-    const loginPath = roleLoginMap[allowedRoles[0]] || '/get-started';
+    const loginPath = roleLoginMap[allowedRoles[0]] || '/start';
 
     return (
       <Navigate
@@ -26,7 +26,7 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
 
   // logged in but wrong role
   if (allowedRoles.length && !allowedRoles.includes(role)) {
-    const loginPath = roleLoginMap[role] || '/get-started';
+    const loginPath = roleLoginMap[role] || '/start';
 
     return <Navigate to={loginPath} replace />;
   }

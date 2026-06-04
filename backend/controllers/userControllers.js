@@ -1,400 +1,1197 @@
 import bcrypt from 'bcryptjs'
 import { User } from '../models/user.js'
+import { Organization } from '../models/organization.js'
 import { Notification } from '../models/notification.js'
 import { Debt } from '../models/debt.js'
-import { Installments } from '../models/installment.js'
-import { Payment } from '../models/payment.js'
-import { Interaction } from '../models/Interaction.js'
-import { Ticket } from '../models/ticket.js'
 
-import { generateAccessId, generatePassword, generateRefNumber } from '../utils/credentials.js'
-import { sendWelcomeEmail } from '../emails/emails.js'
+import { generateEmployeeId, generatePassword, generateRefNumber } from '../utils/credentials.js'
+import { sendWelcomeEmail, sendInstallmentCreatedEmail, sendDebtorAlert } from '../emails/emails.js'
 
+/* --------------------------- AGENT CONTROLLERS ---------------------------*/
 
-/* GET OVERVIEW DATA --------------------------------------------------*/
-export const getBalanceController = async (req, res, next) => {
-   try {
-      const debtors = await User.find({ role: "debtor" })
-      const agents = await User.find({ role: "agent" })
-      const debts = await Debt.find()
+/* GET ALL AGENTS --------------------------------------------------*/
+export const getAllAgentsController = async (req, res, next) => {
+  try {
+    const { q, page, limit, isActive } = req.query
 
-      const totalOwed = debtors.reduce((sum, debtor) => {
-         return sum + (debtor.balance || 0)
-      }, 0)
+    // FILTER OBJECT
+    const filter = {
+      role: 'agent',
+    }
 
-      const totalAgents = await User.countDocuments({ role: "agent", isActive: true })
-      const totalDebtors = await User.countDocuments({ role: "debtor", isActive: true })
-      const totalDebts = await Debt.countDocuments()
-
-      res.status(200).json({
-         success: true,
-         message: "Total Balances",
-         debtors,
-         agents,
-         debts,
-         totalDebts,
-         totalOwed,
-         totalAgents,
-         totalDebtors,
-      })
-
-   } catch (error) {
-      next(error)
-   }
-}
-
-/* SEED ADMIN --------------------------------------------------*/
-export const createAdminController = async (req, res, next) => {
-   const { fullName, email, phoneNumber } = req.body
-   try {
-      const existingAdmin = await User.findOne({ role: "admin" })
-      if (existingAdmin) {
-         return res.status(400).json({
-            success: false,
-            message: "Admin already exists"
-         })
+    // SEARCH
+    if (q) {
+      filter.name = {
+        $regex: q,
+        $options: 'i',
       }
+    }
 
-      const accessId = `DH${generateAccessId()}`
-      const password = `DH${generatePassword()}`
+    // ACTIVE FILTER
+    if (isActive !== undefined) {
+      filter.isActive = isActive === 'true'
+    }
 
-      const hashedPassword = await bcrypt.hash(password, 10)
+    // PAGINATION
+    const pageNumber = parseInt(page) || 1
+    const limitNumber = parseInt(limit) || 10
 
-      const admin = await User.create({
-         fullName,
-         email,
-         phoneNumber,
-         password:hashedPassword,
-         role: "admin",
-         accessId,
-      })
+    const skip =
+      (pageNumber - 1) * limitNumber
 
-      await admin.save()
+    // QUERY
+    const agents = await User.find(filter)
+      .select('-password')
+      .skip(skip)
+      .limit(limitNumber)
+      .sort({ createdAt: -1 })
 
-      res.status(200).json({
-         success: true,
-         message: 'Admin added successfully',
-         admin,
-         detials:{
-            accessId,
-            password
-         }
-      })
-   }catch(error){
-      next(error)
-   }
+    // TOTAL COUNT
+    const totalAgents =
+      await User.countDocuments(filter)
+
+    res.status(200).json({
+      success: true,
+
+      data: agents,
+
+      pagination: {
+        total: totalAgents,
+        page: pageNumber,
+        pages: Math.ceil(
+          totalAgents / limitNumber
+        ),
+        limit: limitNumber,
+      },
+    })
+  } catch (error) {
+    next(error)
+  }
 }
-
-/* -------------------------------------------------------------------------------*/
-/*                              AGENT CONTROLLERS                                 */
-/* -------------------------------------------------------------------------------*/
 
 /* ADD AGENT --------------------------------------------------*/
 export const addAgentController = async (req, res, next) => {
-   const { fullName, email, phoneNumber } = req.body
+  const { name, email, phone } = req.body
+  const userId = req.user._id
 
-   try {
-      if (!fullName || !email || !phoneNumber) {
-         return res.status(400).json({
-            success: false,
-            message: "All fields are required"
-         })
-      }
+  try {
+    const admin = await User.findById({_id: userId})
+    if(!admin && req.user.role !== 'admin'){
+     return res.status(403).json({
+        success: false,
+        message: 'Unauthorized access',
+      }) 
+    }
 
-      const existingUser = await User.findOne({ email })
-      if (existingUser) {
-         return res.status(400).json({
-            success: false,
-            message: "Email already exists"
-         })
-      }
 
-      const agentPassword = `DH${generatePassword()}`
-      const hashedPassword = await bcrypt.hash(agentPassword, 10)
-
-      const user = new User({
-         fullName,
-         email,
-         phoneNumber,
-         role: "agent",
-         balance: undefined,
-         accessId: `DH${generateAccessId()}`,
-         password: hashedPassword
+    /* ----- CHECK AUTH ----- */
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized access',
       })
+    }
 
-      await user.save()
-
-      await sendWelcomeEmail(user.fullName, user.email, user.accessId, agentPassword)
-
-      res.status(201).json({
-         success: true,
-         message: "Agent added successfully",
-         user: {...user, password:undefined}
+    /* ----- VALIDATION ----- */
+    if (!name || !email || !phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required',
       })
+    }
 
-   } catch (err) {
-      next(err)
-   }
+    /* ----- CHECK EXISTING AGENT ----- */
+    const existingAgent = await User.findOne({
+      email,
+    })
+
+    if (existingAgent) {
+      return res.status(400).json({
+        success: false,
+        message: 'Agent already exists',
+      })
+    }
+
+    /* ----- FIND THE USER(ADMIN) ORGANIZATION ----- */
+    const organization = await Organization.findById({
+      _id: admin.organizationId
+    })
+
+    if (!organization) {
+      return res.status(400).json({
+        success: false,
+        message: 'Orgaization not found',
+      })
+    }
+
+    /* ----- GENERATE EMPLOYEE ID ----- */
+    const employeeId = generateEmployeeId()
+
+    /* ----- GENERATE  PASSWORD ----- */
+    const agentPassword = generatePassword()
+    const hashedPassword = await bcrypt.hash(
+      agentPassword,
+      10
+    )
+
+    /* ----- CREATE AGENT ----- */
+    const agent = new User({
+      name,
+      email,
+      phone,
+      role: 'agent',
+      employeeId,
+      password: hashedPassword,
+      createdBy: req.user._id,
+      organizationId: organization._id
+    })
+
+    await agent.save()
+
+    await sendWelcomeEmail(
+      agent.name,
+      agent.email,
+      employeeId,
+      agentPassword,
+    )
+
+    res.status(201).json({
+      success: true,
+      message: 'Agent added successfully',
+      login:{
+        employeeId,
+        agentPassword,
+      }
+    })
+  } catch (err) {
+    next(err)
+  }
 }
 
-/* GET ALL AGENTS --------------------------------------------------*/
-export const getAllAgentsController = async(req, res, next)=>{
-   try {
-      const agents = await User.find({role:'agent'})
+ /* GET EACH AGENT --------------------------------------------------*/
+export const getAgentController = async (req, res, next ) => {
+  const { id } = req.params
 
-      res.status(200).json({
-         success: true,
-         count: agents.length,
-         agents
+  try {
+    const agent = await User.findOne({
+      _id: id,
+      role: 'agent',
+    }).select('-password').populate('debtId')
+
+    if (!agent) {
+      return res.status(404).json({
+        success: false,
+        message: 'Agent not found',
       })
+    }
 
-   } catch (error) {
-      next(error)
-   }
-}
+    const debtors = await User.find({
+      assignedAgent: agent._id
+    }).populate('debtId', 'amount status amountPaid')
 
-/* GET EACH AGENT --------------------------------------------------*/
-export const getAgentController = async(req, res, next) => {
-   const { id } = req.params
-   try{
-      const agent = await  User.findById(id)
-      if(!agent){
-         return res.status(400).json({
-            success: false,
-            message: "Agent not found"
-         })
-      }
+    res.status(200).json({
+      success: true,
+      agent,
+      debtors
+    })
 
-      res.status(200).json({
-         success:true,
-         agent
-      })
-   }catch(error){
-      next(error)
-   }
+  } catch (error) {
+    next(error)
+  }
 }
 
 /* DELETE AGENT --------------------------------------------------*/
-export const deleteAgentController = async(req, res, next) => {
-    const { id } = req.params
-   try{
-      const deletedAgent = await User.findOneAndDelete({ 
-         _id: id,
-         role: "agent" 
-      })
+export const deleteAgentController = async (req, res, next) => {
+  const { id } = req.params
 
-      if(!deletedAgent){
-         return res.status(404).json({
-            success:false,
-            message: "Agent not found"
-         })
-      }
+  try {
+    const agent = await User.findOne({
+      _id: id,
+      role: 'agent',
+    })
 
-      res.status(200).json({
-         success: true,
-         message: "Agent deleted successfully"
+    if (!agent) {
+      return res.status(404).json({
+        success: false,
+        message: 'Agent not found',
       })
-   }catch(error){
-      next(error)
-   }
+    }
+
+    // SOFT DELETE
+    agent.isActive = false
+
+    await agent.save()
+
+    res.status(200).json({
+      success: true,
+      message: 'Agent deactivated successfully',
+    })
+  } catch (error) {
+    next(error)
+  }
 }
 
-/* -------------------------------------------------------------------------------*/
-/*                              DEBTORS CONTROLLERS                                 */
-/* -------------------------------------------------------------------------------*/
+/* UPDATE AGENT --------------------------------------------------*/
+export const updateAgentController = async (req, res, next) => {
+  const { id } = req.params
 
-/* ADD DEBTOR --------------------------------------------------*/
-export const addDebtorController = async (req, res, next) => {
-   const { fullName, 
-           email, 
-           phoneNumber, 
-           idNumber,
-           balance, 
-           primaryLender, 
-           agentId,
-           status
-   } = req.body
+  const {
+    name,
+    email,
+    phone,
+    isActive,
+  } = req.body
 
-   const userId = req.userId
+  try {
+    // FIND AGENT
+    const agent = await User.findOne({
+      _id: id,
+      role: 'agent',
+    })
 
-   try {
-      if (!fullName || !email || !phoneNumber || !idNumber || !primaryLender || !balance) {
-         return res.status(400).json({
-            success: false,
-            message: "All required fields must be provided"
-         })
-      }
+    if (!agent) {
+      return res.status(404).json({
+        success: false,
+        message: 'Agent not found',
+      })
+    }
 
-      const existingDebtor = await User.findOne({ idNumber })
-      if (existingDebtor) {
-         return res.status(400).json({
-            success: false,
-            message: "Debtor already exists"
-         })
-      }
+    // CHECK EMAIL CONFLICT
+    if (email && email !== agent.email) {
+      const existingEmail = await User.findOne({
+        email,
+      })
 
-      const existingEmail = await User.findOne({ email })
       if (existingEmail) {
-         return res.status(400).json({
-            success: false,
-            message: "Email already exists"
-         })
+        return res.status(400).json({
+          success: false,
+          message: 'Email already exists',
+        })
       }
+    }
 
-      const agent = await User.findById(agentId)
-      const agentFullName = agent ? agent.fullName : undefined
+    // UPDATE FIELDS
+    if (name) agent.name = name
 
-      const user = new User({
-         fullName,
-         email,
-         phoneNumber,
-         idNumber,
-         assignedAgent: agentId,
-         agentName: agentFullName,
-         refNumber: `REF${generateRefNumber()}`,
-         balance: balance ||  0,
-         role: "debtor",
-         status,
-      })
+    if (email) agent.email = email
 
-      agent.assignedDebtors.push(user._id)
-      await agent.save()
+    if (phone) agent.phone = phone
 
-      
+    if (typeof isActive === 'boolean') {
+      agent.isActive = isActive
+    }
 
-      const debt = new Debt({
-         debtorInfo:{
-            debtor: user._id,
-            fullName: user.fullName,
-            refNumber: user.refNumber,
-            idNumber: user.idNumber
-         },
-         primaryLender,
-         agent: agentId,
-         amount: balance || 0,
-         balance: balance || 0,
-         description: "Initial balance",
-      })
+    // SAVE
+    await agent.save()
 
-      await debt.save()
-      await user.save()
-      const admin = await User.findOne({ role:"admin" })
-
-
-      const notification = new Notification({
-         recipient: admin._id,
-         type:"debtor_added",
-         message: `New debtor added: ${user.fullName} with balance of R ${balance.toFixed(2) || 0}`,
-         relatedDebtor: user._id
-      })
-
-      await notification.save()
-      
-      res.status(201).json({
-         success: true,
-         message: "Debtor added successfully",
-         user
-      })
-
-   } catch (err) {
-      next(err)
-   }
+    res.status(200).json({
+      success: true,
+      message: 'Agent updated successfully',
+      agent,
+    })
+  } catch (error) {
+    next(error)
+  }
 }
+
+/* --------------------------- DEBTOR CONTROLLERS ---------------------------*/
 
 /* GET ALL DEBTORS --------------------------------------------------*/
-export const getAllDebtorsController = async (req, res, next) => {
-   const userId = req.userId
-   try {
-      let debtors;
-      if(req.userRole === 'admin'){
-         debtors = await User.find({
-            role: 'debtor'
-         })
-      }else if(req.userRole === 'agent'){
-         debtors = await User.find({
-            role: 'debtor',
-            assignedAgent: userId
-         })
-      }else{
-         return res.status(400).json({
-            success: false,
-            message: "Debtors not found"
-         })
+export const getAllDebtorsController = async (req, res, next ) => {
+  try {
+    const { q, page, limit, isActive } = req.query
+
+    const filter = {
+      role: 'debtor',
+    }
+
+    // SEARCH
+    if (q) {
+      filter.name = {
+        $regex: q,
+        $options: 'i',
       }
+    }
 
-      res.status(200).json({
-         success: true,
-         count: debtors.length,
-         debtors
-      })
+    // ACTIVE FILTER
+    if (isActive !== undefined) {
+      filter.isActive = isActive === 'true'
+    }
 
-   } catch (error) {
-      next(error)
-   }
+    // PAGINATION
+    const pageNumber = parseInt(page) || 1
+    const limitNumber = parseInt(limit) || 10
+    const skip =
+      (pageNumber - 1) * limitNumber
+
+    const debtors = await User.find(filter)
+      .select('-password')
+      .skip(skip)
+      .limit(limitNumber)
+      .sort({ createdAt: -1 })
+
+    const total =
+      await User.countDocuments(filter)
+
+    res.status(200).json({
+      success: true,
+      data: debtors,
+      pagination: {
+        total,
+        page: pageNumber,
+        pages: Math.ceil(
+          total / limitNumber
+        ),
+        limit: limitNumber,
+      },
+    })
+  } catch (error) {
+    next(error)
+  }
 }
 
-/* GET EACH DEBTOR --------------------------------------------------*/
-export const getDebtorController = async(req, res, next) => {
-   const { id } = req.params
-   try{
-      const debtor = await  User.findById(id)
-      if(!debtor){
-         return res.status(400).json({
-            success: false,
-            message: "Debtor not found"
-         })
-      }
+/* ADD DEBTOR + INITIAL DEBT ------------------------------------*/
+export const addDebtorController = async (req, res, next ) => {
+  const {
+    name,
+    email,
+    phone,
+    idNumber,
+    primaryLender,
+    amount,
+    dueDate,
+    description,
+    agentId,
+    status
+  } = req.body 
 
-      res.status(200).json({
-         success:true,
-         debtor
+  const userId = req.user._id
+
+  try {
+    const admin = await User.findById({_id: userId})
+    if(!admin && req.user.role !== 'admin'){
+     return res.status(403).json({
+        success: false,
+        message: 'Unauthorized access',
+      }) 
+    }
+
+    /* 1. ----- VALIDATION ----- */
+    if (!name || !email || !idNumber || !amount) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Name, email, ID number and amount required',
       })
-   }catch(error){
-      next(error)
-   }
+    }
+
+    /* 2. ----- CHECK EXISTING USER ----- */
+    const existingUser = await User.findOne({
+      email,  
+    })
+
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'Debtor already exists',
+      })
+    }
+
+    /* 3. ----- GENERATE DEBTOR CREDENTIALS ----- */
+    const refNumber = generateRefNumber()
+
+    /* 4. ----- HASH THE ID NUMBER ----- */
+    const hashedPassword = await bcrypt.hash(
+      idNumber,
+      10
+    )
+
+    /* ----- FIND THE USER(ADMIN) ORGANIZATION ----- */
+    const organization = await Organization.findById({
+      _id: admin.organizationId
+    })
+
+    if (!organization) {
+      return res.status(400).json({
+        success: false,
+        message: 'Orgaization not found',
+      })
+    }
+
+    /* 5. ----- CREATE DEBTOR USER ----- */
+    const debtor = await User.create({
+      name,
+      email,
+      phone,
+      idNumber,
+      refNumber,
+      role: 'debtor',
+      createdBy: req.user._id,
+      assignedAgent: agentId,
+      organizationId: organization._id
+    })
+
+    /* 6. ----- CREATE DEBT RECORD ----- */
+    const debt = await Debt.create({
+      debtorId: debtor._id,
+      agentId: agentId || req.user._id,
+      primaryLender,
+      amount,
+      amountPaid: 0,
+      balance: amount,
+      dueDate,
+      description,
+      status,
+      organizationId: organization._id
+    })
+
+    debtor.debtId = debt._id
+    await debtor.save()
+
+    const agent = await User.findById({_id: agentId})
+
+    if (!agent) {
+      return res.status(400).json({
+        success: false,
+        message: 'Agent not found',
+      })
+    }
+
+    /* 7. ----- SEND DEBT ALERT ----- */
+    await sendDebtorAlert(
+      debtor.email,
+      debtor.name,
+      debtor.refNumber,
+      debtor.idNumber,
+      debt.amount,
+      debt.balance,
+      debt.dueDate,
+      agent.name,
+      debt.primaryLender,
+    )
+
+    /* 8. ----- RESPONSE ----- */
+    res.status(201).json({
+      success: true,
+      message: 'Debtor and initial debt created successfully',
+      debtor,
+      debt,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+ /* GET EACH DEBTOR --------------------------------------------------*/
+export const getDebtorController = async (
+  req,
+  res,
+  next
+) => {
+  const { id } = req.params
+
+  try {
+    const debtor = await User.findOne({
+      _id: id,
+      role: 'debtor',
+    }).select('-password').populate('debtId').populate('organizationId').populate("assignedAgent")
+
+    if (!debtor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Debtor not found',
+      })
+    }
+
+    res.status(200).json({
+      success: true,
+      debtor,
+    })
+  } catch (error) {
+    next(error)
+  }
 }
 
 /* DELETE DEBTOR --------------------------------------------------*/
-export const deleteDebtorController = async(req, res, next)=>{
-   const { id } = req.params
-   try{
-      const deletedDebtor = await User.findOneAndDelete({ 
-         _id: id,
-         role: "debtor" 
-      })
+export const deleteDebtorController = async (
+  req,
+  res,
+  next
+) => {
+  const { id } = req.params
 
-      if(!deletedDebtor){
-         return res.status(404).json({
-            success:false,
-            message: "Debtor not found"
-         })
-      }
+  try {
+    const debtor = await User.findOne({
+      _id: id,
+      role: 'debtor',
+    })
 
-      res.status(200).json({
-         success: true,
-         message: "Debtor deleted successfully"
+    if (!debtor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Debtor not found',
       })
-   }catch(error){
-      next(error)
-   }
+    }
+
+    debtor.isActive = false
+
+    await debtor.save()
+
+    res.status(200).json({
+      success: true,
+      message: 'Debtor deactivated successfully',
+    })
+  } catch (error) {
+    next(error)
+  }
 }
+
+/* UPDATE DEBTOR --------------------------------------------------*/
+export const updateDebtorController = async (
+  req,
+  res,
+  next
+) => {
+  const { id } = req.params
+
+  const {
+    name,
+    email,
+    phone,
+    idNumber,
+    isActive,
+  } = req.body
+
+  try {
+    const debtor = await User.findOne({
+      _id: id,
+      role: 'debtor',
+    })
+
+    if (!debtor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Debtor not found',
+      })
+    }
+
+    // EMAIL CHECK
+    if (email && email !== debtor.email) {
+      const exists = await User.findOne({
+        email,
+      })
+
+      if (exists) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email already exists',
+        })
+      }
+    }
+
+    if (name) debtor.name = name
+    if (email) debtor.email = email
+    if (phone) debtor.phone = phone
+    if (idNumber) debtor.idNumber = idNumber
+
+    if (typeof isActive === 'boolean') {
+      debtor.isActive = isActive
+    }
+
+    await debtor.save()
+
+    res.status(200).json({
+      success: true,
+      message: 'Debtor updated successfully',
+      debtor,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// /* GET ALL AGENTS --------------------------------------------------*/
+// export const getAllAgentsController = async (req, res, next) => {
+//   try {
+//     const { q, page, limit, isActive } = req.query
+
+//     // FILTER OBJECT
+//     const filter = {
+//       role: 'agent',
+//     }
+
+//     // SEARCH
+//     if (q) {
+//       filter.name = {
+//         $regex: q,
+//         $options: 'i',
+//       }
+//     }
+
+//     // ACTIVE FILTER
+//     if (isActive !== undefined) {
+//       filter.isActive = isActive === 'true'
+//     }
+
+//     // PAGINATION
+//     const pageNumber = parseInt(page) || 1
+//     const limitNumber = parseInt(limit) || 10
+
+//     const skip =
+//       (pageNumber - 1) * limitNumber
+
+//     // QUERY
+//     const agents = await User.find(filter)
+//       .select('-password')
+//       .skip(skip)
+//       .limit(limitNumber)
+//       .sort({ createdAt: -1 })
+
+//     // TOTAL COUNT
+//     const totalAgents =
+//       await User.countDocuments(filter)
+
+//     res.status(200).json({
+//       success: true,
+
+//       data: agents,
+
+//       pagination: {
+//         total: totalAgents,
+//         page: pageNumber,
+//         pages: Math.ceil(
+//           totalAgents / limitNumber
+//         ),
+//         limit: limitNumber,
+//       },
+//     })
+//   } catch (error) {
+//     next(error)
+//   }
+// }
+
+// /* ADD AGENT --------------------------------------------------*/
+// export const addAgentController = async (req, res, next) => {
+//   const { name, email, phone } = req.body
+
+//   try {
+//     /* ----- CHECK AUTH ----- */
+//     if (req.user.role !== 'admin') {
+//       return res.status(403).json({
+//         success: false,
+//         message: 'Unauthorized access',
+//       })
+//     }
+
+//     /* ----- VALIDATION ----- */
+//     if (!name || !email || !phone) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'All fields are required',
+//       })
+//     }
+
+//     /* ----- CHECK EXISTING AGENT ----- */
+//     const existingAgent = await User.findOne({
+//       email,
+//     })
+
+//     if (existingAgent) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Agent already exists',
+//       })
+//     }
+
+//     /* ----- GENERATE EMPLOYEE ID ----- */
+//     const employeeId = generateEmployeeId()
+
+//     /* ----- GENERATE  PASSWORD ----- */
+//     const agentPassword = generatePassword()
+//     const hashedPassword = await bcrypt.hash(
+//       agentPassword,
+//       10
+//     )
+
+//     /* ----- CREATE AGENT ----- */
+//     const agent = new User({
+//       name,
+//       email,
+//       phone,
+//       role: 'agent',
+//       employeeId,
+//       password: hashedPassword,
+//       createdBy: req.user._id,
+//     })
+
+//     await agent.save()
+
+//     await sendWelcomeEmail(
+//       agent.name,
+//       agent.email,
+//       employeeId,
+//       agentPassword
+//     )
+
+//     res.status(201).json({
+//       success: true,
+//       message: 'Agent added successfully'
+//     })
+//   } catch (err) {
+//     next(err)
+//   }
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// /* GET OVERVIEW DATA --------------------------------------------------*/
+// export const getBalanceController = async (req, res, next) => {
+//    try {
+//       const debtors = await User.find({ role: "debtor" })
+//       const agents = await User.find({ role: "agent" })
+//       const debts = await Debt.find()
+
+//       const totalOwed = debtors.reduce((sum, debtor) => {
+//          return sum + (debtor.balance || 0)
+//       }, 0)
+
+//       const totalAgents = await User.countDocuments({ role: "agent", isActive: true })
+//       const totalDebtors = await User.countDocuments({ role: "debtor", isActive: true })
+//       const totalDebts = await Debt.countDocuments()
+
+//       res.status(200).json({
+//          success: true,
+//          message: "Total Balances",
+//          debtors,
+//          agents,
+//          debts,
+//          totalDebts,
+//          totalOwed,
+//          totalAgents,
+//          totalDebtors,
+//       })
+
+//    } catch (error) {
+//       next(error)
+//    }
+// }
+
+// /* SEED ADMIN --------------------------------------------------*/
+// export const createAdminController = async (req, res, next) => {
+//    const { fullName, email, phoneNumber } = req.body
+//    try {
+//       const existingAdmin = await User.findOne({ role: "admin" })
+//       if (existingAdmin) {
+//          return res.status(400).json({
+//             success: false,
+//             message: "Admin already exists"
+//          })
+//       }
+
+//       const accessId = `DH${generateAccessId()}`
+//       const password = `DH${generatePassword()}`
+
+//       const hashedPassword = await bcrypt.hash(password, 10)
+
+//       const admin = await User.create({
+//          fullName,
+//          email,
+//          phoneNumber,
+//          password:hashedPassword,
+//          role: "admin",
+//          accessId,
+//          /* --- undefined fields for admin --- */
+//          status: undefined,
+//          balance: undefined,
+//          refNumber: undefined,
+//          agentName:undefined,
+//          assignedDebtors:undefined,
+//          notes:undefined
+//       })
+
+//       res.status(200).json({
+//          success: true,
+//          message: 'Admin added successfully',
+//          admin,
+//          detials:{
+//             accessId,
+//             password
+//          }
+//       })
+//    }catch(error){
+//       next(error)
+//    }
+// }
+
+// /* -------------------------------------------------------------------------------*/
+// /*                              AGENT CONTROLLERS                                 */
+// /* -------------------------------------------------------------------------------*/
+
+// /* ADD AGENT --------------------------------------------------*/
+// export const addAgentController = async (req, res, next) => {
+//    const { fullName, email, phoneNumber } = req.body
+//    const userId = req.userId
+//    try {
+//       const admin = await User.findById({
+//          _id: userId,
+//          role: 'admin'
+//       })
+
+//       if(!admin){
+//        return res.status(400).json({
+//             success: false,
+//             message: "Unauthorised Access"
+//          })  
+//       }
+
+//       if (!fullName || !email || !phoneNumber) {
+//          return res.status(400).json({
+//             success: false,
+//             message: "All fields are required"
+//          })
+//       }
+
+//       const existingUser = await User.findOne({ email })
+//       if (existingUser) {
+//          return res.status(400).json({
+//             success: false,
+//             message: "Email already exists"
+//          })
+//       }
+
+//       const agentPassword = `DH${generatePassword()}`
+//       const hashedPassword = await bcrypt.hash(agentPassword, 10)
+
+//       const user = new User({
+//          fullName,
+//          email,
+//          phoneNumber,
+//          role: "agent",
+//          balance: undefined,
+//          accessId: `DH${generateAccessId()}`,
+//          password: hashedPassword
+//       })
+
+//       await user.save()
+
+//       await sendWelcomeEmail(user.fullName, user.email, user.accessId, agentPassword)
+
+//       res.status(201).json({
+//          success: true,
+//          message: "Agent added successfully",
+//          user: {...user, password:undefined}
+//       })
+
+//    } catch (err) {
+//       next(err)
+//    }
+// }
+
+
+
+//  /* GET EACH AGENT --------------------------------------------------*/
+// export const getAgentController = async (
+//   req,
+//   res,
+//   next
+// ) => {
+//   const { id } = req.params
+
+//   try {
+//     const agent = await User.findOne({
+//       _id: id,
+//       role: 'agent',
+//     }).select('-password')
+
+//     if (!agent) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Agent not found',
+//       })
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       agent,
+//     })
+//   } catch (error) {
+//     next(error)
+//   }
+// }
+
+// /* DELETE AGENT --------------------------------------------------*/
+// export const deleteAgentController = async(req, res, next) => {
+//     const { id } = req.params
+//    try{
+//       const deletedAgent = await User.findOneAndDelete({ 
+//          _id: id,
+//          role: "agent" 
+//       })
+
+//       if(!deletedAgent){
+//          return res.status(404).json({
+//             success:false,
+//             message: "Agent not found"
+//          })
+//       }
+
+//       res.status(200).json({
+//          success: true,
+//          message: "Agent deleted successfully"
+//       })
+//    }catch(error){
+//       next(error)
+//    }
+// }
+
+// /* -------------------------------------------------------------------------------*/
+// /*                              DEBTORS CONTROLLERS                                 */
+// /* -------------------------------------------------------------------------------*/
+
+// /* ADD DEBTOR --------------------------------------------------*/
+// export const addDebtorController = async (req, res, next) => {
+//    const { fullName, 
+//            email, 
+//            phoneNumber, 
+//            idNumber,
+//            balance, 
+//            primaryLender, 
+//            agentId,
+//            status
+//    } = req.body
+
+//    const userId = req.userId
+
+//    try {
+//       if (!fullName || !email || !phoneNumber || !idNumber || !primaryLender || !balance) {
+//          return res.status(400).json({
+//             success: false,
+//             message: "All required fields must be provided"
+//          })
+//       }
+
+//       const existingDebtor = await User.findOne({ idNumber })
+//       if (existingDebtor) {
+//          return res.status(400).json({
+//             success: false,
+//             message: "Debtor already exists"
+//          })
+//       }
+
+//       const existingEmail = await User.findOne({ email })
+//       if (existingEmail) {
+//          return res.status(400).json({
+//             success: false,
+//             message: "Email already exists"
+//          })
+//       }
+
+//       const agent = await User.findById(agentId)
+//       const agentFullName = agent ? agent.fullName : undefined
+
+//       const user = new User({
+//          fullName,
+//          email,
+//          phoneNumber,
+//          idNumber,
+//          assignedAgent: agentId,
+//          agentName: agentFullName,
+//          refNumber: `REF${generateRefNumber()}`,
+//          balance: balance ||  0,
+//          role: "debtor",
+//          status,
+//       })
+
+//       const updatedList = await User.findOneAndUpdate(
+//          { _id: agentId },
+//          {
+//             $push: { assignedDebtors: user._id}
+//          },
+//          {
+//           new: true,
+//           runValidators: true
+//          }
+//       )
+//       await agent.save()
+
+      
+
+//       const debt = new Debt({
+//          debtorInfo:{
+//             debtor: user._id,
+//             fullName: user.fullName,
+//             refNumber: user.refNumber,
+//             idNumber: user.idNumber
+//          },
+//          primaryLender,
+//          agent:{
+//             agentId: agentId
+//          },
+//          amount: balance || 0,
+//          balance: balance || 0,
+//          description: "Initial balance",
+//       })
+
+//       await debt.save()
+//       await user.save()
+//       const admin = await User.findOne({ role:"admin" })
+
+
+//       const notification = new Notification({
+//          recipient: admin._id,
+//          type:"debtor_added",
+//          message: `New debtor added: ${user.fullName} with balance of R ${balance || 0}`,
+//          relatedDebtor: user._id
+//       })
+
+//       await notification.save()
+      
+//       res.status(201).json({
+//          success: true,
+//          message: "Debtor added successfully",
+//          user
+//       })
+
+//    } catch (err) {
+//       next(err)
+//    }
+// }
+
+// /* GET ALL DEBTORS --------------------------------------------------*/
+// export const getAllDebtorsController = async (req, res, next) => {
+//    const userId = req.userId
+//    try {
+//       let debtors;
+//       if(req.userRole === 'admin'){
+//          debtors = await User.find({
+//             role: 'debtor'
+//          })
+//       }else if(req.userRole === 'agent'){
+//          debtors = await User.find({
+//             role: 'debtor',
+//             assignedAgent: userId
+//          })
+//       }else{
+//          return res.status(400).json({
+//             success: false,
+//             message: "Debtors not found"
+//          })
+//       }
+
+//       res.status(200).json({
+//          success: true,
+//          count: debtors.length,
+//          debtors
+//       })
+
+//    } catch (error) {
+//       next(error)
+//    }
+// }
+
+// /* GET EACH DEBTOR --------------------------------------------------*/
+// export const getDebtorController = async(req, res, next) => {
+//    const { id } = req.params
+//    try{
+//       const debtor = await  User.findById(id)
+//       if(!debtor){
+//          return res.status(400).json({
+//             success: false,
+//             message: "Debtor not found"
+//          })
+//       }
+
+//       res.status(200).json({
+//          success:true,
+//          debtor
+//       })
+//    }catch(error){
+//       next(error)
+//    }
+// }
+
+// /* DELETE DEBTOR --------------------------------------------------*/
+// export const deleteDebtorController = async(req, res, next)=>{
+//    const { id } = req.params
+//    try{
+//       const deletedDebtor = await User.findOneAndDelete({ 
+//          _id: id,
+//          role: "debtor" 
+//       })
+
+//       if(!deletedDebtor){
+//          return res.status(404).json({
+//             success:false,
+//             message: "Debtor not found"
+//          })
+//       }
+
+//       res.status(200).json({
+//          success: true,
+//          message: "Debtor deleted successfully"
+//       })
+//    }catch(error){
+//       next(error)
+//    }
+// }
 
 /* -------------------------------------------------------------------------------*/
 /*                         DEBTS CONTROLLER(ROLE-BASED)                           */
 /* -------------------------------------------------------------------------------*/
 
+
+
+
+
+
 /* GET DEBTS  --------------------------------------------------*/
 export const  getDebtsController = async (req, res, next) => {
    const userId = req.userId
-
    try {
+
      let debts;
      if(req.userRole === 'admin'){
         debts = await Debt.find()
      } else if(req.userRole === 'agent'){
-        debts = await Debt.find({ agent: userId })
+        debts = await Debt.find({ agent: {
+         agentId: userId
+        } }) 
      } else if(req.userRole === 'debtor'){
-        debts = await Debt.find({ debtor: userId })
+        debts = await Debt.find({ debtorInfo:{
+         debtor: userId
+        } })
      }else{
       return res.status(403).json({
          success: false,
@@ -404,6 +1201,7 @@ export const  getDebtsController = async (req, res, next) => {
 
      res.status(200).json({
       success: true,
+      count: debts.length,
       debts
      })
 
@@ -411,6 +1209,17 @@ export const  getDebtsController = async (req, res, next) => {
       next(error)
    }
 }
+
+/* GET EACH DEBT  --------------------------------------------------*/
+
+/* UPDATE DEBT  --------------------------------------------------*/
+
+/* DELETE DEBT  --------------------------------------------------*/
+
+
+
+
+
 
 /* GET INSTALLMENTS --------------------------------------------------*/
 export const getActiveInstallments = async (req, res, next) => {
@@ -444,18 +1253,109 @@ export const getActiveInstallments = async (req, res, next) => {
   }
 }
 
+/* CREATE INSTALLMENTS --------------------------------------------------*/
+export const createInstallments = async (req, res, next) => {
+  const userId = req.userId;
+
+  const {
+    debtorId,
+    originalBalance,
+    installmentAmount,
+    frequency,
+    totalInstallments,
+    nextDueDate,
+    startDate,
+    status
+  } = req.body;
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorised Access"
+      });
+    }
+
+    const debtor = await User.findById(debtorId);
+    if (!debtor) {
+      return res.status(404).json({
+        success: false,
+        message: "Debtor not found"
+      });
+    }
+
+    const existingInstallment = await Installments.findOne({
+      relatedDebtor: debtorId,
+      status: "active"
+    });
+
+    if (existingInstallment) {
+      return res.status(400).json({
+        success: false,
+        message: "Active installment already exists for this debtor"
+      });
+    }
+
+    const installment = new Installments({
+      relatedDebtor: debtor._id,
+      createdBy: user._id,
+      originalBalance,
+      remainingBalance:originalBalance,
+      installmentAmount,
+      frequency,
+      totalInstallments,
+      nextDueDate,
+      startDate,
+      status
+    });
+
+    await installment.save();
+
+    await sendInstallmentCreatedEmail(
+      debtor.fullName,
+      debtor.email,
+      installmentAmount,
+      frequency,
+      totalInstallments,
+      nextDueDate,
+      startDate
+    );
+
+    const admin = await User.findOne({
+      role:"admin",
+      isActive: true
+   })
+
+    await Notification.create({
+      recipient: admin._id,
+      type: "installment_plan",
+      message: `A new installment plan of R${installmentAmount} was created.`
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Installment plan created",
+      installment
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
+
 /* GET PAYMENTS --------------------------------------------------*/
 export const getAllPayments = async(req, res, next)=>{
-   const userId = req.userId
+   const userId = req.userId 
    try{
      let payments;
      if(req.userRole === "admin"){
       payments = await Payment.find()
-     }else if(userRole === 'agent'){
+     }else if(req.userRole === 'agent'){
       payments = await Payment.find({
          agent: userId
       })
-     }else if(userRole === 'debtor'){
+     }else if(req.userRole === 'debtor'){
       payments = await Payment.find({
          debtor: userId
       })
@@ -466,7 +1366,7 @@ export const getAllPayments = async(req, res, next)=>{
       })
      }
 
-     res.status.json({
+     res.status(200).json({
       success: true,
       payments
      })
@@ -501,50 +1401,49 @@ export const getNotificationsController = async (req, res, next) => {
 }
 
 /* MARK NOTIFICATION AS READ --------------------------------------------------*/
-export const readNotificationsController = async (req, res, next) => {
-   const { id } = req.params
-   const { userId } = req.userId
-   try {
-      const user = await User.findOne({
-         _id: userId
-      })
+export const readNotificationsController = async (
+  req,
+  res,
+  next
+) => {
 
-      if(!user){
-         return res.status(400).json({
-            success: false,
-            message: 'Unauthorired Access'
-         })
-      }
-      
-      const notification = await Notification.findBtId({
-         _id: id,
-         recipient: userId
-      })
+  try {
 
-      if(!notification){
-         return res.status(400).json({
-            success: false,
-            message: 'Notification not found'
-         })
-      }
+    const { id } = req.params
+    const userId = req.userId
 
+    const notification =
       await Notification.findOneAndUpdate(
-         {_id: id},
-         {$set:{read: true}},
-         {
-            returnDocument: true,
-            runValidators: true,
-         }
+        {
+          _id: id,
+          recipient: userId
+        },
+        {
+          $set: {
+            read: true
+          }
+        },
+        {
+          new: true,
+          runValidators: true
+        }
       )
 
-      res.status(200).json({
-         success: true,
-         notification
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found'
       })
+    }
 
-   } catch (error) {
-      next(error)
-   }
+    res.status(200).json({
+      success: true,
+      notification
+    })
+
+  } catch (error) {
+    next(error)
+  }
 }
 
 /* -------------------------------------------------------------------------------*/
@@ -552,104 +1451,117 @@ export const readNotificationsController = async (req, res, next) => {
 /* -------------------------------------------------------------------------------*/
 
 /* ADD TICKET --------------------------------------------------*/
-export const addTicketController = async (req, res, next)=>{
-   const userId = req.userId
-   const { subject, priority, description, attachments } = req.body
-   try{
+export const addTicketController = async (req, res, next) => {
 
-      const agent = await User.findById(userId)
-      if(!agent){
-         return res.status(200).json({
-            success: false,
-            message:"Agent not found"
-         })
-      }
+  try {
 
-      const tickets = await Ticket.find()
-      const ticketingNumber = `TKT-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
-      const admin = await User.findOne({
-         role: 'admin',
-         isActive: true
+    const userId = req.userId
+
+    const {
+      subject,
+      priority,
+      description
+    } = req.body
+
+    const agent = await User.findById(userId)
+
+    if (!agent) {
+      return res.status(404).json({
+        success: false,
+        message: 'Agent not found'
       })
+    }
 
-      /* ----- HANDLE FILE UPLOAD ----- */
-      // const storage = mutler.diskStorage({
-      //    destination : (req, file, cb)=>{
-      //       cb(null, 'uploads')
-      //    },
-      //    filename:(req, file, cb) =>{
-      //       const uniquename = Date.now() + "-" + file.originalname
-      //       cb(null, uniquename)
-      //    }
-      // })
+    const admin = await User.findOne({
+      role: 'admin',
+      isActive: true
+    })
 
-      // const upload = multer({storage})
-
-
-      const message = {
-         sender: {
-            userId: agent._id,
-            name: agent.fullName,
-            role: agent.role
-         },
-         message: description,
-         createdAt: Date.now()
-      }
-
-      const newTicket = await Ticket.create({
-         ticketNumber: ticketingNumber,
-         submittedBy: {
-            agentId: agent._id,
-            fullName: agent.fullName,
-            email:agent.email,
-            phoneNumber: agent.phoneNumber
-         },
-         subject,
-         priority,
-         // clientAccountId: ,
-         // attachments,
-         description,
-         assignedTo: admin._id,
-         messages:[message]
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active admin found'
       })
+    }
 
-      //Notification to admin
-      await Notification.create({
-         recipient: admin._id,
-         type: "new_ticket",
-         message: `A new ticket is open ${newTicket.ticketNumber}`,
-      })
+    const ticketNumber =
+      `TKT-${Date.now()}`
 
-      res.status(200).json({
-         success: true,
-         message: 'New ticket added',
-         newTicket,
-      })
+    const firstMessage = {
+      sender: {
+        userId: agent._id,
+        name: agent.fullName,
+        role: agent.role
+      },
+      message: description,
+      createdAt: new Date()
+    }
 
-   }catch(err){
-      next(err)
-   }
+    const newTicket = await Ticket.create({
+      ticketNumber,
+
+      submittedBy: {
+        agentId: agent._id,
+        fullName: agent.fullName,
+        email: agent.email,
+        phoneNumber: agent.phoneNumber
+      },
+
+      subject,
+      priority,
+      description,
+
+      assignedTo: admin._id,
+
+      attachments: req.file?.path || null,
+
+      messages: [firstMessage]
+    })
+
+    await Notification.create({
+      recipient: admin._id,
+      type: 'new_ticket',
+      message: `New support ticket: ${ticketNumber}`
+    })
+
+    res.status(201).json({
+      success: true,
+      message: 'Ticket created successfully',
+      newTicket
+    })
+
+  } catch (error) {
+    next(error)
+  }
 }
 
 /* GET ALL TICKETS --------------------------------------------------*/
 export const getTicketsController = async (req, res, next)=>{
    const userId = req.userId
+
    try{
       let tickets;
       const admin = await User.findOne({
          role:'admin',
          isActive:true
       })
+
+      const agent = await User.findOne({
+         _id: userId
+      })
       if(admin){
          tickets = await Ticket.find({}).sort({createdAt: -1})
-      } else{
+      } 
+ 
+      if(req.userRole === 'agent'){
          tickets = await Ticket.find({
-            $or:[
-               { submittedBy: userId },
-               { assignedTo: userId }
-            ]
+            submittedBy:{
+               agentId: agent._id
+            }
          })
       }
+      
+
       res.status(200).json({
          success: true,
          tickets
@@ -682,60 +1594,85 @@ export const getEachTicketController = async (req, res, next) => {
 }
 
 /* REPLY TICKETS --------------------------------------------------*/
-export const replyticketController = async (req, res, next) => {
-   const { id } = req.params
-   const userId = req.userId
-   const { description } = req.body
-   try{
-      const user = await User.findById(userId)
-      if(!user){
-         return res.status(400).json({
-            success: false,
-            message: "User not found"
-         })
-      }
+export const replyticketController = async (
+  req,
+  res,
+  next
+) => {
 
-      const ticket = await Ticket.findById(id)
-      if(!ticket){
-         return res.status(400).json({
-            success: false,
-            message: "Ticket not found"
-         })
-      }
+  try {
 
-      const message = {
-         sender: {
-            userId: user._id,
-            name: user.fullName,
-            role: user.role
-         },
-         message: description,
-         createdAt: new Date()
-      }
+    const { id } = req.params
+    const userId = req.userId
 
-      const newStatus = user.role === "admin" ? "close" : "open";
+    const { message } = req.body
 
-      await Ticket.findOneAndUpdate(
-      { _id: ticket._id },
-      {
-         $push: { messages: message },
-         $set: { status: newStatus },
-      },
-      {
-         returnDocument: true,
-         runValidators: true,
-      }
-      );
-
-      res.status(201).json({
-         success: true,
-         message: "Message sent successfully",
-         message
+    if (!message?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message is required'
       })
+    }
 
-   }catch(error){
-      next(error)
-   }
+    const user = await User.findById(userId)
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      })
+    }
+
+    const ticket = await Ticket.findById(id)
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: 'Ticket not found'
+      })
+    }
+
+    const newMessage = {
+      sender: {
+        userId: user._id,
+        name: user.fullName,
+        role: user.role
+      },
+
+      message,
+
+      createdAt: new Date()
+    }
+
+    const newStatus =
+      user.role === 'admin'
+        ? 'in_progress'
+        : 'open'
+
+    const updatedTicket =
+      await Ticket.findByIdAndUpdate(
+        id,
+        {
+          $push: {
+            messages: newMessage
+          },
+
+          $set: {
+            status: newStatus
+          }
+        },
+        
+      )
+
+    res.status(201).json({
+      success: true,
+      message: 'Reply sent successfully',
+      updatedTicket
+    })
+
+  } catch (error) {
+    next(error)
+  }
 }
 
 /* -------------------------------------------------------------------------------*/
@@ -748,11 +1685,14 @@ export const recordInteractions = async(req,res, next)=>{
    const { id } = req.params
    const { notes, method, date, outcome } = req.body
    try{
-      const agent = await User.findById(userId)
+      const agent = await User.findOne({
+         assignedDebtors: id
+      })
+
       if(!agent){
          return res.status(200).json({
             success: false,
-            message:"Agent not found"
+            message:"Agent not found" 
          })
       }
 
@@ -784,7 +1724,7 @@ export const recordInteractions = async(req,res, next)=>{
          relatedDebtor: debtor._id
       })
 
-      res.status(200).json({
+      res.status(200).json({ 
          success: true,
          interaction
       })
@@ -793,17 +1733,3 @@ export const recordInteractions = async(req,res, next)=>{
       next(err)
    }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-

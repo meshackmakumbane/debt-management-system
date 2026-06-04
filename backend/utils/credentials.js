@@ -1,15 +1,29 @@
-const generateSixDigitNumber = () => {
-  return Math.floor(100000 + Math.random() * 900000);
-};
+const generateRandomDigits = (length = 8) => {
+  let result = ''
 
+  for (let i = 0; i < length; i++) {
+    result += Math.floor(Math.random() * 10)
+  }
+
+  return result
+}
+
+/*  REF NUMBER -------------------------------- */
 export const generateRefNumber = () => {
-  return generateSixDigitNumber();
-};
+  return `REF-${generateRandomDigits(8)}`
+}
 
-export const generateAccessId = () => {
-  return generateSixDigitNumber();
-};
+/* EMPLOYEE ID -------------------------------- */
+export const generateEmployeeId = () => {
+  return `EMP-${generateRandomDigits(8)}`
+}
 
+/* EMPLOYEE PASSWORD -------------------------------- */
 export const generatePassword = () => {
-  return generateSixDigitNumber().toString();
-};
+  return `DH-${generateRandomDigits(8)}`
+}
+
+/* VERIFICATION CODE -------------------------------- */
+export const generateVerificationCode = () => {
+  return generateRandomDigits(6)
+}
