@@ -32,14 +32,14 @@ const Payoff = ({ discount, totalPayoff }) => {
         <div className='bg-green-600 shadow rounded-lg'>
             <div className='flex items-center justify-between p-2  '>
                 <div className='text-white'>
-                    <p className='font-bold text-md'>Once-Off Payment</p>
-                    <p className='text-sm'>Pay full amount and get 5% discount - <span className='font-bold'>R{discount.toFixed(2).toLocaleString() || 0}</span></p>
+                    <p className='font-medium text-md'>Once-Off Payment</p>
+                    <p className='text-sm'>Settle Now, Save 5% - <span className='font-medium'>R{discount.toFixed(2).toLocaleString() || 0}</span></p>
                 </div>
             </div>
-            <div className='my-2 p-1 bg-white rounded-lg shadow cursor-pointer'>
+            <div className='my-2 p-1 bg-white rounded-lg shadow cursor-pointer text-gray-600'>
                 <div className='flex items-center justify-between mx-2.5 my-2'>
-                    <h1 className='text-gray-950 font-bold max-sm:text-[17px]'><Link to='/debtor/payments'>PAY NOW</Link></h1>
-                    <h1 className='text-gray-950 text-md font-bold'>R{totalPayoff.toFixed(2).toLocaleString() || 0}</h1>
+                    <h1 className='text-gray-950 font-medium max-sm:text-[17px]'><Link to='/debtor/payments'>PAY NOW</Link></h1>
+                    <h1 className='text-gray-950 text-md font-medium'>R{totalPayoff.toFixed(2).toLocaleString() || 0}</h1>
                 </div>
             </div>
         </div>

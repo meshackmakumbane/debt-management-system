@@ -71,11 +71,11 @@ const DebtorOverview = () => {
 
   return (
     <>
-      <section className='grid lg:grid-cols-3 gap-4 bg-gray-50 px-4 py-5'>
+      <section className='grid lg:grid-cols-3 gap-4 bg-gray-50 px-4 py-5 rounded-md'>
           {/* Debts section */}
           <Debts debts={debts} status={status} errorMessage={errorMessage}/>
           {/* Installments section */}
-          <Installments installments={installments} status={status} errorMessage={errorMessage}/>
+          <Installments installments={installments} status={status} errorMessage={errorMessage}/> 
           {/* Pay once-off section */}
           <Payoff discount={discount} totalPayoff={totalPayoff} />
       </section>

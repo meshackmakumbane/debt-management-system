@@ -70,7 +70,7 @@ const Support = () => {
 
     fetchTickets()
 
-  }, [message])
+  }, [message]) // Refetch tickets when a new message is sent to get the latest status
 
   /* ---------------- AUTO SCROLL ---------------- */
 
@@ -171,7 +171,7 @@ const Support = () => {
 
   /* ---------------- UI ---------------- */
 
-  if(fetchTickets) return <PageLoader />
+ 
 
   return (
     <div>

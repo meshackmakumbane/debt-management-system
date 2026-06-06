@@ -26,7 +26,7 @@ const debtSlice = createSlice({
   initialState,
   reducers:{},
   extraReducers:(builder) => {
-    builder
+    builder 
       //Fetch Active debts
       .addCase(fetchDebts.pending, (state) => {
         state.status = 'loading'

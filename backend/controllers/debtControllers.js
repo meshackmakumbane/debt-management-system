@@ -3,36 +3,27 @@ import { Debt } from '../models/debt.js'
 /* --------------------------- DEBTOR CONTROLLERS ---------------------------*/
 
 /* DEBTS CONTROLLER(ROLE-BASED) --------------------------------------------------*/
-export const getDebtsController = async (
-  req,
-  res,
-  next
-) => {
-  const userId = req.user._id
-  const role = req.user.role
-
+export const getDebtsController = async (req, res, next) => {
   try {
-    let filter = {}
+    const { _id: userId, role } = req.user
 
-    if (role === 'admin') {
-      filter = {}
-    }
+    let query = {}
 
-    else if (role === 'agent') { filter = { 'agent.agentId': userId, }
-    }
-
-    else if (role === 'debtor') { filter = {'debtorInfo.debtor': userId,}
-    }
-
-    else {
+    if (role === 'debtor') {
+      query = { debtorId: userId }
+    } else if (role === 'agent') {
+      query = { agentId: userId }
+    } else if (role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: 'Unauthorized access',
       })
     }
 
-    const debts = await Debt.find(filter)
-      .sort({ createdAt: -1 }).populate(['debtorId', 'agentId'])
+    const debts = await Debt.find(query)
+      .sort({ createdAt: -1 })
+      .populate('debtorId', 'firstName lastName email')
+      .populate('agentId', 'firstName lastName email')
 
     res.status(200).json({
       success: true,

@@ -2,7 +2,7 @@ import express from 'express'
 const router = express.Router()
 
 import { getDebtsController,
-         getDebtController,
+         getDebtController, 
          updateDebtController,
          deleteDebtController
 } from '../controllers/debtControllers.js'

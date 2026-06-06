@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 
 import debtLogo from '../../../assets/Debtlogo.png';
-import Loader from '../../../components/UI/Loader'
+import Loader from '../../../components/UI/Loader' 
 
 import { loginUser, clearError, setError } from '../authSlice'
 

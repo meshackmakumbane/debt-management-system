@@ -43,14 +43,17 @@ const Debts = ({ debts, status, errorMessage }) => {
           </div>
           <hr className='mx-2 my-1'/>
           <div className='my-3 '>
-            {debts?.length > 0 
+            {debts?.length > 0  
             ? debts.map(debt =>(
-              <div key={debt.id} className='flex items-center justify-between m-2'>
-                  <span className='font-semibold'>{debt.primaryLender }</span>
-                  <p className='text-gray-950 text-md font-bold'>R{debt.balance.toFixed(2).toLocaleString()}</p>
+              <div key={debt.id} className='flex items-center justify-between m-2 text-gray-600'>
+                  <span className='font-medium'>{debt.primaryLender }</span>
+                  <p className='text-md font-medium'>R{Number(debt.balance).toLocaleString('en-ZA', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}</p>
               </div>
               ))
-            : <p className='font-bold text-md'>These are all your accounts!</p>
+            : <p className='font-bold text-md m-2'>No Debt found!</p>
             }
           </div>
         </div>

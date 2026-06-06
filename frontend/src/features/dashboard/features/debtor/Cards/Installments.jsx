@@ -45,15 +45,57 @@ const Installments = ({ installments, status, errorMessage }) => {
   ))
 
   return (
-    <div className='md:flex-1'>
-      <p className='font-medium text-black my-2 pl-2'>Installment</p>
-      <div className='flex items-center justify-between bg-green-600 rounded-lg shadow'>
-        <div className='mx-auto w-10 flex items-center justify-center'>
-          <svg width="30px" height="30px" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg" color="#ffffff"><path d="M11 6H21" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M11 12H21" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M11 18H21" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M5 19V5M5 19L3 16.5M5 19L7 16.5M5 5L3 7M5 5L7 7" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-        </div>
-        { installments?.length > 0 ? renderedInstallments : <p>No Active Installment</p>}
+<div className='md:flex-1'>
+  <p className='font-medium text-black my-2 pl-2'>Installment</p>
+
+  <div className='flex items-center justify-between bg-green-600 rounded-lg shadow'>
+    
+    <div className='mx-auto w-10 flex items-center justify-center'>
+      <svg width="30px" height="30px" viewBox="0 0 24 24" fill="none">
+        <path d="M11 6H21" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M11 12H21" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M11 18H21" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M5 19V5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    </div>
+
+    <div className='bg-white rounded-lg flex-1'>
+
+      <div className='my-[18px]'>
+        {installments?.length > 0 ? (
+          installments.map((installment) => (
+            <div
+              key={installment._id}
+              className='flex items-center justify-between m-2 text-gray-600'
+            >
+              <div>
+                <p className='font-medium'>
+                  {installment.primaryLender}
+                </p>
+                <p className='text-xs text-gray-500'>
+                  Due: {new Date(installment.nextPaymentDate).toLocaleDateString()}
+                </p>
+              </div>
+
+              <p className='font-medium text-green-600'>
+                R{installment.monthlyAmount?.toLocaleString()}
+              </p>
+            </div>
+          ))
+        ) : (
+          <div className='m-2 py-2'>
+            <p className='font-bold text-md text-gray-700'>
+              No Active Installments
+            </p>
+            <p className='text-sm text-gray-500'>
+              Contact your agent to arrange a repayment plan.
+            </p>
+          </div>
+        )}
       </div>
     </div>
+  </div>
+</div>
   )
 }
 

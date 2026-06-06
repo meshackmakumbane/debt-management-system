@@ -21,7 +21,7 @@ import interactionRouter from './routes/interactionRoutes.js'
 import chatRouter from './routes/chatbotRoutes.js'
 
 /* DATABASE -------------------------------- */
-import connectDb from './DB/connectDB.js'
+import connectDb from './DB/connectDB.js' 
 
 dotenv.config()
 
@@ -39,8 +39,6 @@ app.use(
 app.use(express.json())
 app.use(cookieParser())
 
-
-
 /* ---------------- LOGGING (optional) ---------------- */
 
 app.use((req, res, next) => {
@@ -48,14 +46,10 @@ app.use((req, res, next) => {
   next()
 })
 
-
-
-
 /* ---------------- ROUTE ---------------- */
 app.use('/v1/api/overview', overviewRouter)
 app.use('/v1/api/data', analyticsRouter)
 app.use('/v1/api/admin', adminRouter)
-
 
 app.use('/v1/api/auth', authRouter)
 app.use('/v1/api/user', userRouter)
@@ -70,9 +64,6 @@ app.use('/v1/api/debt', debtRouter)
 app.use('/v1/api/interaction', interactionRouter)
 
 app.use('/v1/api/chat', chatRouter)
-
-
-
 
 
 /* ---------------- GLOBAL ERROR HANDLER ---------------- */

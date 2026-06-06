@@ -8,7 +8,7 @@ import debtLogo from '../../../assets/Debtlogo.png';
 import Loader from '../../../components/UI/Loader'
 
 const DebtorLogin = () => {
-  const { user, status, error, isAuthenticated, role } = useSelector(state=> state.auth)
+  const { loading, user, status, error, isAuthenticated, role } = useSelector(state=> state.auth)
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const [formValue, setFormValue] = useState({
@@ -83,7 +83,7 @@ const DebtorLogin = () => {
             <button
               className="bg-green-600 hover:bg-green-700 text-white font-semibold w-full p-3 rounded-lg transition cursor-pointer"
             >
-              {status === "loading" ? <Loader /> : "Login"}
+              {loading ? <Loader /> : "Login"}
             </button>
 
           </form>

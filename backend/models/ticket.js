@@ -73,7 +73,7 @@ const ticketSchema = new mongoose.Schema(
 
         role: {
           type: String,
-          enum: ['admin', 'agent'],
+          enum: ['admin', 'agent', 'debtor'],
           required: true,
         },
 
