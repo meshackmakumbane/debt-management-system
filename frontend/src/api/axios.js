@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:5500/v1/api',
+  baseURL: 'https://debt-management-system-6.onrender.com/v1/api',
   withCredentials: true,
 });
 
