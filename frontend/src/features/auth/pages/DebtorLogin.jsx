@@ -92,7 +92,7 @@ const DebtorLogin = () => {
         <div className='bg-gray-50 p-4 max-sm:w-80 md:w-100 lg:w-80 rounded-xl mt-6 text-center text-[10px]'> 
           <p>Test credentials:</p> 
           <p>Identity Number: 0987654321</p> 
-          <p>Reference Number: DH234147</p> 
+          <p>Reference Number: REF-62760558</p> 
         </div>
 
         <p className="text-xs text-gray-400 mt-4">Version 0.1</p>

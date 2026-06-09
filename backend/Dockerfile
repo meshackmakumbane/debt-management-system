@@ -9,4 +9,4 @@ COPY . .
 
 EXPOSE 5000
 
-CMD ["nod
+CMD ["node", "server.js"]

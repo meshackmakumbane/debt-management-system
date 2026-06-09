@@ -96,8 +96,8 @@ const AgentLogin = () => {
 
           <div className='bg-gray-50 p-4 max-sm:w-80 md:w-100 lg:w-80 rounded-xl mt-6 text-center text-[10px]'> 
             <p>Test credentials:</p> 
-            <p>Access ID: DH215769</p> 
-            <p>Password: DH930326</p> 
+            <p>Employee ID: EMP-39900662</p> 
+            <p>Password: DH-64281376</p> 
           </div>
 
           <p className="text-xs text-gray-400 mt-4 text-center">

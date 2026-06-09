@@ -104,8 +104,8 @@ const AdminLogin = () => {
 
           <div className="bg-gray-50 text-center text-[10px] rounded-xl mt-6 p-4">
             <p>Test credentials:</p>
-            <p>Employee ID: EMP-07160413</p>
-            <p>Password: DH13396040</p>
+            <p>Employee ID: EMP-14578888</p>
+            <p>Password: DH-54791199</p>
           </div>
 
           <p className="text-xs text-gray-400 mt-4 text-center">
