@@ -31,12 +31,17 @@ const PORT = process.env.PORT || 5000
 app.set('trust proxy', 1);
 
 /* ---------------- MIDDLEWARE ---------------- */
-app.use(
-  cors({
-    origin: process.env.CLIENT_URL || 'https://debthero.netlify.app',
-    credentials: true,
-  })
-)
+app.use(cors({
+  origin: 'https://debthero.netlify.app',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+app.options('*', cors({
+  origin: 'https://debthero.netlify.app',
+  credentials: true,
+}));
 
 app.use(express.json())
 app.use(cookieParser())
