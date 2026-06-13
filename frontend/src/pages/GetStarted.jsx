@@ -14,7 +14,7 @@ const GetStarted = () => {
       {
          id:2,
          title: 'Agents',
-         desc: 'Stay organized and productive with access to assigned accounts. Track payments, update balances, log interactions, and follow ups.',
+         desc: 'A platform for Agents to stay organized and productive with access to assigned accounts. Track payments, update balances, log interactions, and follow ups.',
          link:"/auth/agent"
       },
       {
