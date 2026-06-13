@@ -31,7 +31,7 @@ const PORT = process.env.PORT || 5000
 /* ---------------- MIDDLEWARE ---------------- */
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || 'https://debt-management-system-6.onrender.com',
+    origin: process.env.CLIENT_URL || 'https://debthero.netlify.app/',
     credentials: true,
   })
 )
