@@ -3,11 +3,12 @@ import api from '../../api/axios'
 
 const initialState = {
   user: null,
+  token: localStorage.getItem("token") || null,
   role: null,
   loading: false,
   error: null,
   isAuthenticated: false,
-}
+};
 
 /* LOGIN -------------------------------------------------------------------------- */
 export const loginUser = createAsyncThunk(
@@ -22,7 +23,7 @@ export const loginUser = createAsyncThunk(
       );
     }
   }
-)
+);
 
 /* PROFILE -------------------------------------------------------------------------- */
 export const getProfile = createAsyncThunk(
@@ -37,7 +38,7 @@ export const getProfile = createAsyncThunk(
       );
     }
   }
-)
+);
 
 /* LOGOUT -------------------------------------------------------------------------- */
 export const logoutUser = createAsyncThunk(
@@ -52,7 +53,7 @@ export const logoutUser = createAsyncThunk(
       );
     }
   }
-)
+);
 
 /* SLICE-------------------------------------------------------------------------- */
 const authSlice = createSlice({
@@ -84,7 +85,8 @@ const authSlice = createSlice({
       .addCase(loginUser.fulfilled, (state, action) => {
         state.loading = false;
         state.user = action.payload.user;
-        state.role = action.payload.user.role;   
+        state.role = action.payload.user.role;  
+        localStorage.setItem('token', action.payload.token); 
         state.isAuthenticated = true; 
       })
       .addCase(loginUser.rejected, (state, action) => {

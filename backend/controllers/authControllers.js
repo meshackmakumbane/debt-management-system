@@ -1,36 +1,23 @@
 import bcrypt from 'bcryptjs';
 import { User } from '../models/user.js';
+import { jwt } from 'jsonwebtoke'
 
 import generateTokenAndSetCookie from '../utils/generateTokenAndSetCookie.js'
 
 /* LOGIN -------------------------------------------------------------------------- */
-export const loginController = async (
-  req,
-  res,
-  next
-) => {
+export const loginController = async ( req, res, next ) => {
   try {
-
-    const {
-      employeeId,
-      password,
-      refNumber,
-      idNumber
-    } = req.body
+    const { employeeId, password, refNumber, idNumber } = req.body
 
     let user = null
 
     /* -------------------------- DEBTOR LOGIN -------------------------- */
 
-    const isDebtorLogin =
-      Boolean(refNumber && idNumber)
+    const isDebtorLogin = Boolean(refNumber && idNumber)
 
     if (isDebtorLogin) {
 
-      user =
-        await User.findOne({
-          refNumber,
-          idNumber,
+      user = await User.findOne({ refNumber, idNumber,
           role: 'debtor',
           isActive: true
         }).select('-password')
@@ -38,42 +25,21 @@ export const loginController = async (
 
     /* -------------------------- STAFF LOGIN -------------------------- */
 
-    const isStaffLogin =
-      Boolean(employeeId && password)
+    const isStaffLogin = Boolean(employeeId && password)
 
-    if (
-      !user &&
-      isStaffLogin
-    ) {
+    if (!user && isStaffLogin) {
 
-      const existingUser =
-        await User.findOne({
-          employeeId,
+      const existingUser = await User.findOne({ employeeId,
           role: {
-            $in: [
-              'admin',
-              'agent'
-            ]
+            $in: ['admin', 'agent']
           },
           isActive: true
         })
 
-      if (
-        existingUser &&
-        existingUser.password
-      ) {
-
-        const match =
-          await bcrypt.compare(
-            password,
-            existingUser.password
-          )
-
+      if ( existingUser && existingUser.password ) {
+        const match = await bcrypt.compare(password, existingUser.password)
         if (match) {
-
-          user =
-            existingUser.toObject()
-
+          user = existingUser.toObject()
           delete user.password
         }
       }
@@ -81,34 +47,28 @@ export const loginController = async (
 
     /* -------------------------- INVALID LOGIN -------------------------- */
 
-    if (!user) {
-      return res.status(401).json({
+    if (!user) { return res.status(401).json({
         success: false,
-        message:
-          'Invalid credentialss'
+        message: 'Invalid credentialss'
       })
     }
 
     /* -------------------------- UPDATE LOGIN -------------------------- */
 
-    await User.findByIdAndUpdate(
-      user._id,
-      {
-        lastLogin:
-          new Date()
-      }
+    await User.findByIdAndUpdate( user._id,
+      { lastLogin:new Date() }
     )
 
-    /* --------------------------- AUTH COOKIE --------------------------- */
+    /* --------------------------- AUTH TOKEN --------------------------- */
 
-    generateTokenAndSetCookie(res, user._id)
+    const token = jwt.sign({id: user._id}, process.env.JWT_SECRET_KEY, { expiresIn: '15m' })
 
     /* ---------------------------- RESPONSE ---------------------------- */
 
     return res.status(200).json({
       success: true,
-      message:
-        'Login successful',
+      message:'Login successful',
+      token,
       user
     })
 
