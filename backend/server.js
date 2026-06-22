@@ -38,10 +38,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-app.options('*', cors({
-  origin: 'https://debthero.netlify.app',
-  credentials: true,
-}));
+
 
 app.use(express.json())
 app.use(cookieParser())
