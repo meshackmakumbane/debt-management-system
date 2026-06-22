@@ -1,8 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { User } from '../models/user.js'
 
-import jwt from "jsonwebtoken";
-
 const protect = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
@@ -13,8 +11,9 @@ const protect = (req, res, next) => {
   const token = authHeader.split(" ")[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
     req.user = decoded.id;
+    console.log(decoded.id)
     next();
   } catch (err) {
     return res.status(401).json({ message: "Invalid token" });

@@ -72,11 +72,11 @@ export const getAllAgentsController = async (req, res, next) => {
 /* ADD AGENT --------------------------------------------------*/
 export const addAgentController = async (req, res, next) => {
   const { name, email, phone } = req.body
-  const userId = req.user._id
+  const userId = req.user
 
   try {
-    const admin = await User.findById({_id: userId})
-    if(!admin && req.user.role !== 'admin'){
+    const admin = await User.findById(userId)
+    if(!admin){
      return res.status(403).json({
         success: false,
         message: 'Unauthorized access',
@@ -85,7 +85,7 @@ export const addAgentController = async (req, res, next) => {
 
 
     /* ----- CHECK AUTH ----- */
-    if (req.user.role !== 'admin') {
+    if (admin.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: 'Unauthorized access',

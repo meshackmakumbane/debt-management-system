@@ -6,15 +6,24 @@ export const overviewController = async (req, res, next) => {
   try {
     const { role, organizationId } = req.user
 
-    if (role !== 'admin') {
+    const user = await User.findById(req.user)
+
+    if(!user){
       return res.status(403).json({
         success: false,
         message: 'Unauthorized Access',
       })
     }
 
+    if (user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin Access only',
+      })
+    }
+
     const organization = await Organization
-      .findById(organizationId)
+      .findById(user.organizationId)
       .lean()
 
     if (!organization) {
@@ -27,7 +36,7 @@ export const overviewController = async (req, res, next) => {
     const [debtors, agents, debts] = await Promise.all([
       User.find({
         role: 'debtor',
-        organizationId,
+        organizationId: user.organizationId,
       })
         .select('-password')
         .lean()
@@ -36,13 +45,13 @@ export const overviewController = async (req, res, next) => {
 
       User.find({
         role: 'agent',
-        organizationId,
+        organizationId: user.organizationId,
       })
         .select('-password')
         .lean(),
 
       Debt.find({
-        organizationId,
+        organizationId: user.organizationId,
         isActive: true,
       }).lean(),
     ])

@@ -10,7 +10,7 @@ export const addTicketController = async ( req, res, next ) => {
 
   try {
 
-    const userId = req.user._id
+    const userId = req.user
 
     const { subject, priority, description, relatedDebtor, relatedDebt } = req.body
 

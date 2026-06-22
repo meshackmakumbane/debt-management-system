@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { User } from '../models/user.js';
-import { jwt } from 'jsonwebtoke'
+import  jwt  from 'jsonwebtoken'
 
 import generateTokenAndSetCookie from '../utils/generateTokenAndSetCookie.js'
 
@@ -61,7 +61,7 @@ export const loginController = async ( req, res, next ) => {
 
     /* --------------------------- AUTH TOKEN --------------------------- */
 
-    const token = jwt.sign({id: user._id}, process.env.JWT_SECRET_KEY, { expiresIn: '15m' })
+    const token = jwt.sign({id: user._id}, process.env.JWT_SECRET_KEY, { expiresIn: '7d' })
 
     /* ---------------------------- RESPONSE ---------------------------- */
 
@@ -80,7 +80,7 @@ export const loginController = async ( req, res, next ) => {
 /* PROFILE -------------------------------------------------------------------------- */
 export const profileController = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user._id).select('-password');
+    const user = await User.findById(req.user).select('-password');
 
     if (!user) {
       return res.status(401).json({

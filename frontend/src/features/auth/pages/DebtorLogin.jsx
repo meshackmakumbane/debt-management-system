@@ -91,7 +91,7 @@ const DebtorLogin = () => {
 
         <div className='bg-gray-50 p-4 max-sm:w-80 md:w-100 lg:w-80 rounded-xl mt-6 text-center text-[10px]'> 
           <p>Test credentials:</p> 
-          <p>Identity Number: 0987654321</p> 
+          <p>Identity Number: 1234567890123</p> 
           <p>Reference Number: REF-62760558</p> 
         </div>
 

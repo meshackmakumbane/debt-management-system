@@ -66,9 +66,6 @@ const AdminOverview = () => {
 
       {/* HEADER */}
       <div>
-        <h2 className="text-2xl font-semibold text-gray-900">
-          {organization?.name || "Hello"}
-        </h2>
         <p className="text-sm text-gray-500">
           Key system metrics and performance snapshot
         </p>

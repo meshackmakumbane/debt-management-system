@@ -1,19 +1,29 @@
 import { Debt } from '../models/debt.js'
+import { User } from '../models/user.js'
 
 /* --------------------------- DEBTOR CONTROLLERS ---------------------------*/
 
 /* DEBTS CONTROLLER(ROLE-BASED) --------------------------------------------------*/
 export const getDebtsController = async (req, res, next) => {
   try {
-    const { _id: userId, role } = req.user
+    const userId = req.user
 
     let query = {}
 
-    if (role === 'debtor') {
+    const user = await User.findById(userId)
+
+    if(!user){
+      return res.json({
+        success:false,
+        message: "Unauthorised Access"
+      })
+    }
+
+    if (user.role === 'debtor') {
       query = { debtorId: userId }
-    } else if (role === 'agent') {
+    } else if (user.role === 'agent') {
       query = { agentId: userId }
-    } else if (role !== 'admin') {
+    } else if (user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: 'Unauthorized access',
